@@ -1,29 +1,38 @@
 /**
- * Core enhancement simulation logic with Monte Carlo support.
+ * Awakening enhancement simulation engine.
+ *
+ * Full port of the Python implementation with:
+ * - Normal enhancement with anvil pity
+ * - Hepta/Okta sub-enhancement paths
+ * - Restoration scrolls
+ * - Valks bonuses
+ * - Resource tracking
  */
 
 import {
 	ANVIL_THRESHOLDS,
-	DEFAULT_PRICES,
-	ENHANCEMENT_RATES,
-	MATERIAL_COSTS,
-	RESTORATION_SCROLL_COSTS,
+	EXQUISITE_BLACK_CRYSTAL_RECIPE,
+	HEPTA_OKTA_ANVIL_PITY,
+	HEPTA_OKTA_CRYSTALS_PER_ATTEMPT,
+	HEPTA_OKTA_SUCCESS_RATE,
+	HEPTA_SUB_ENHANCEMENTS,
+	OKTA_SUB_ENHANCEMENTS,
+	RATE_CACHE,
+	RATE_CACHE_VALKS_10,
+	RATE_CACHE_VALKS_100,
+	RATE_CACHE_VALKS_50,
+	RESTORATION_MARKET_BUNDLE_SIZE,
+	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
-	VALKS_MULTIPLIERS,
 } from './config'
-import type {
-	AttemptResult,
-	EnhancementStrategy,
-	GearState,
-	MonteCarloResult,
-	PercentileStats,
-	SimulationResult,
-	ValksType,
-} from './types'
-import { cloneGearState, createGearState } from './types'
+import type { SimulationConfig, SimulationResult, StepResult } from './types'
+import { getRestorationAttemptCost } from './types'
 
 /** Seeded random number generator (Mulberry32) */
-function createRng(seed: number) {
+function createRng(seed?: number) {
+	if (seed === undefined) {
+		return Math.random
+	}
 	let state = seed
 	return () => {
 		state |= 0
@@ -34,311 +43,495 @@ function createRng(seed: number) {
 	}
 }
 
-export class AwakeningSimulator {
+export class AwakeningEngine {
+	private config: SimulationConfig
 	private rng: () => number
-	private prices: Record<string, number>
 
-	constructor(seed?: number, prices?: Record<string, number>) {
-		this.rng = seed !== undefined ? createRng(seed) : Math.random
-		this.prices = prices ?? DEFAULT_PRICES
+	// State
+	private level: number = 0
+	private anvilEnergy: Record<number, number> = {}
+	private crystals: number = 0
+	private scrolls: number = 0
+	private silver: number = 0
+	private exquisiteCrystals: number = 0
+	private valks10Used: number = 0
+	private valks50Used: number = 0
+	private valks100Used: number = 0
+	private attempts: number = 0
+	private heptaProgress: number = 0
+	private oktaProgress: number = 0
+	private heptaPity: number = 0
+	private oktaPity: number = 0
+
+	// Cached config values for performance
+	private readonly targetLevel: number
+	private readonly restorationFrom: number
+	private readonly useHepta: boolean
+	private readonly useOkta: boolean
+	private readonly valks10From: number
+	private readonly valks50From: number
+	private readonly valks100From: number
+	private readonly crystalPrice: number
+	private readonly valks10Price: number
+	private readonly valks50Price: number
+	private readonly valks100Price: number
+	private readonly restorationAttemptCost: number
+	private readonly exquisiteCost: number
+
+	constructor(config: SimulationConfig, seed?: number) {
+		this.config = config
+		this.rng = createRng(seed)
+
+		// Cache config values
+		this.targetLevel = config.targetLevel
+		this.restorationFrom = config.restorationFrom
+		this.useHepta = config.useHepta
+		this.useOkta = config.useOkta
+		this.valks10From = config.valks10From
+		this.valks50From = config.valks50From
+		this.valks100From = config.valks100From
+
+		// Cache prices
+		const prices = config.prices
+		this.crystalPrice = prices.crystalPrice
+		this.valks10Price = prices.valks10Price
+		this.valks50Price = prices.valks50Price
+		this.valks100Price = prices.valks100Price
+		this.restorationAttemptCost = getRestorationAttemptCost(prices.restorationBundlePrice)
+
+		// Pre-compute exquisite crystal cost
+		this.exquisiteCost =
+			Math.floor(
+				(EXQUISITE_BLACK_CRYSTAL_RECIPE.restorationScrolls * prices.restorationBundlePrice) /
+					RESTORATION_MARKET_BUNDLE_SIZE
+			) +
+			EXQUISITE_BLACK_CRYSTAL_RECIPE.valks100 * prices.valks100Price +
+			EXQUISITE_BLACK_CRYSTAL_RECIPE.pristineBlackCrystal * prices.crystalPrice
+
+		this.reset()
 	}
 
-	/** Update market prices */
-	setPrices(prices: Record<string, number>): void {
-		this.prices = { ...DEFAULT_PRICES, ...prices }
+	reset(): void {
+		this.level = this.config.startLevel
+		this.anvilEnergy = {}
+		this.crystals = 0
+		this.scrolls = 0
+		this.silver = 0
+		this.exquisiteCrystals = 0
+		this.valks10Used = 0
+		this.valks50Used = 0
+		this.valks100Used = 0
+		this.attempts = 0
+		this.heptaProgress = this.config.startHepta
+		this.oktaProgress = this.config.startOkta
+		this.heptaPity = 0
+		this.oktaPity = 0
 	}
 
-	/** Get success rate including any bonuses (multiplicative) */
-	private getSuccessRate(targetLevel: number, valks: ValksType): number {
-		const baseRate = ENHANCEMENT_RATES[targetLevel] ?? 0.01
-
-		if (valks === 'small') {
-			return Math.min(1.0, baseRate * VALKS_MULTIPLIERS[10])
-		}
-		if (valks === 'large') {
-			return Math.min(1.0, baseRate * VALKS_MULTIPLIERS[50])
-		}
-		if (valks === '100') {
-			return Math.min(1.0, baseRate * VALKS_MULTIPLIERS[100])
-		}
-
-		return baseRate
+	isComplete(): boolean {
+		return this.level >= this.targetLevel
 	}
 
-	/** Determine if restoration should be used based on strategy */
-	private shouldUseRestoration(currentLevel: number, strategy: EnhancementStrategy): boolean {
-		switch (strategy.restoration) {
-			case 'never':
-				return false
-			case 'always':
-				return true
-			case 'above_threshold':
-				return currentLevel >= strategy.restorationThreshold
-			case 'cost_efficient':
-				return currentLevel >= 4
+	getLevel(): number {
+		return this.level
+	}
+
+	getAnvilEnergy(): Record<number, number> {
+		return { ...this.anvilEnergy }
+	}
+
+	getHeptaProgress(): number {
+		return this.heptaProgress
+	}
+
+	getOktaProgress(): number {
+		return this.oktaProgress
+	}
+
+	getHeptaPity(): number {
+		return this.heptaPity
+	}
+
+	getOktaPity(): number {
+		return this.oktaPity
+	}
+
+	getStats(): {
+		crystals: number
+		scrolls: number
+		silver: number
+		exquisiteCrystals: number
+		valks10Used: number
+		valks50Used: number
+		valks100Used: number
+		attempts: number
+	} {
+		return {
+			crystals: this.crystals,
+			scrolls: this.scrolls,
+			silver: this.silver,
+			exquisiteCrystals: this.exquisiteCrystals,
+			valks10Used: this.valks10Used,
+			valks50Used: this.valks50Used,
+			valks100Used: this.valks100Used,
+			attempts: this.attempts,
 		}
 	}
 
-	/** Determine which Valks to use based on strategy */
-	private getValksType(targetLevel: number, strategy: EnhancementStrategy): ValksType {
-		switch (strategy.valks) {
-			case 'never':
-				return null
-			case 'small_only':
-				return 'small'
-			case 'large_only':
-				return 'large'
-			case 'large_high':
-				return targetLevel >= strategy.valksLargeThreshold ? 'large' : null
-			case 'optimal':
-				if (targetLevel >= 7) return 'large'
-				if (targetLevel >= 4) return 'small'
-				return null
-		}
+	private shouldUseHepta(): boolean {
+		return (
+			(this.useHepta || this.heptaProgress > 0) &&
+			this.level === 7 &&
+			this.heptaProgress < HEPTA_SUB_ENHANCEMENTS
+		)
 	}
 
-	/** Perform a single enhancement attempt */
-	attemptEnhancement(gear: GearState, strategy: EnhancementStrategy): AttemptResult {
-		const targetLevel = gear.awakeningLevel + 1
+	private shouldUseOkta(): boolean {
+		return (
+			(this.useOkta || this.oktaProgress > 0) &&
+			this.level === 8 &&
+			this.oktaProgress < OKTA_SUB_ENHANCEMENTS
+		)
+	}
 
-		if (targetLevel > 10) {
-			throw new Error('Already at max awakening level (X)')
+	/** Perform a single enhancement step */
+	step(): StepResult {
+		if (this.isComplete()) {
+			throw new Error('Simulation already complete')
 		}
 
-		const valksType = this.getValksType(targetLevel, strategy)
-		const successRate = this.getSuccessRate(targetLevel, valksType)
+		if (this.shouldUseHepta()) {
+			return this.performHeptaOktaStep(false)
+		}
+		if (this.shouldUseOkta()) {
+			return this.performHeptaOktaStep(true)
+		}
+
+		return this.performEnhancementStep()
+	}
+
+	private performHeptaOktaStep(isOkta: boolean): StepResult {
+		const pathName = isOkta ? 'Okta' : 'Hepta'
+		const currentProgress = isOkta ? this.oktaProgress : this.heptaProgress
+		const currentPity = isOkta ? this.oktaPity : this.heptaPity
+		const maxProgress = isOkta ? OKTA_SUB_ENHANCEMENTS : HEPTA_SUB_ENHANCEMENTS
+
+		// Cost tracking
+		this.exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+		this.silver += this.exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+		this.attempts++
 
 		// Check anvil pity
-		const currentEnergy = gear.anvilEnergy[targetLevel] ?? 0
-		const maxEnergy = ANVIL_THRESHOLDS[targetLevel] ?? 999
-		const anvilTriggered = maxEnergy > 0 && currentEnergy >= maxEnergy
+		const anvilTriggered = currentPity >= HEPTA_OKTA_ANVIL_PITY
 
-		// Calculate material costs
-		const materialsCost: Record<string, number> = {
-			pristine_black_crystal: MATERIAL_COSTS[targetLevel] ?? 1,
-		}
-		if (valksType === 'small') {
-			materialsCost.valks_advice_10 = 1
-		} else if (valksType === 'large') {
-			materialsCost.valks_advice_50 = 1
-		} else if (valksType === '100') {
-			materialsCost.valks_advice_100 = 1
-		}
-
-		const startingLevel = gear.awakeningLevel
-
-		// Anvil guaranteed success
-		if (anvilTriggered) {
-			gear.awakeningLevel = targetLevel
-			gear.anvilEnergy[targetLevel] = 0
-			return {
-				success: true,
-				startingLevel,
-				endingLevel: targetLevel,
-				anvilTriggered: true,
-				restorationAttempted: false,
-				restorationSuccess: false,
-				valksUsed: valksType,
-				materialsCost,
-			}
-		}
-
-		// Roll for success
-		const roll = this.rng()
-		const success = roll < successRate
-
-		if (success) {
-			gear.awakeningLevel = targetLevel
-			gear.anvilEnergy[targetLevel] = 0
-			return {
-				success: true,
-				startingLevel,
-				endingLevel: targetLevel,
-				anvilTriggered: false,
-				restorationAttempted: false,
-				restorationSuccess: false,
-				valksUsed: valksType,
-				materialsCost,
-			}
-		}
-
-		// Failed - accumulate energy
-		gear.anvilEnergy[targetLevel] = (gear.anvilEnergy[targetLevel] ?? 0) + 1
-
-		// Handle downgrade
-		let restorationAttempted = false
-		let restorationSuccess = false
-		let endingLevel = gear.awakeningLevel
-
-		if (gear.awakeningLevel > 0) {
-			const useRestoration = this.shouldUseRestoration(gear.awakeningLevel, strategy)
-
-			if (useRestoration) {
-				restorationAttempted = true
-				materialsCost.restoration_scroll = RESTORATION_SCROLL_COSTS[gear.awakeningLevel] ?? 200
-				restorationSuccess = this.rng() < RESTORATION_SUCCESS_RATE
-
-				if (!restorationSuccess) {
-					gear.awakeningLevel -= 1
-					endingLevel = gear.awakeningLevel
-				}
+		if (anvilTriggered || this.rng() < HEPTA_OKTA_SUCCESS_RATE) {
+			// Success
+			if (isOkta) {
+				this.oktaProgress++
+				this.oktaPity = 0
 			} else {
-				gear.awakeningLevel -= 1
-				endingLevel = gear.awakeningLevel
+				this.heptaProgress++
+				this.heptaPity = 0
 			}
+
+			const newProgress = isOkta ? this.oktaProgress : this.heptaProgress
+			const pathComplete = newProgress >= maxProgress
+
+			if (pathComplete) {
+				const targetLvl = isOkta ? 9 : 8
+				this.level = targetLvl
+				this.anvilEnergy[targetLvl] = 0
+				if (isOkta) {
+					this.oktaProgress = 0
+					this.oktaPity = 0
+				} else {
+					this.heptaProgress = 0
+					this.heptaPity = 0
+				}
+			}
+
+			return {
+				success: true,
+				anvilTriggered,
+				startingLevel: pathComplete ? (isOkta ? 8 : 7) : this.level,
+				endingLevel: this.level,
+				valksUsed: null,
+				restorationAttempted: false,
+				restorationSuccess: false,
+				isHeptaOkta: true,
+				subProgress: pathComplete ? 0 : newProgress,
+				subPity: 0,
+				pathComplete,
+				pathName,
+			}
+		}
+
+		// Failure - increment pity
+		if (isOkta) {
+			this.oktaPity++
+		} else {
+			this.heptaPity++
 		}
 
 		return {
 			success: false,
-			startingLevel,
-			endingLevel,
 			anvilTriggered: false,
-			restorationAttempted,
-			restorationSuccess,
-			valksUsed: valksType,
-			materialsCost,
+			startingLevel: this.level,
+			endingLevel: this.level,
+			valksUsed: null,
+			restorationAttempted: false,
+			restorationSuccess: false,
+			isHeptaOkta: true,
+			subProgress: currentProgress,
+			subPity: isOkta ? this.oktaPity : this.heptaPity,
+			pathComplete: false,
+			pathName,
 		}
 	}
 
-	/** Run simulation until target level is reached */
-	simulateToTarget(
-		targetLevel: number,
-		strategy: EnhancementStrategy,
-		startingState?: GearState,
-		maxAttempts = 100_000,
-		recordHistory = false
-	): SimulationResult {
-		const gear = startingState ? cloneGearState(startingState) : createGearState()
+	private performEnhancementStep(): StepResult {
+		const startingLevel = this.level
+		const nextLevel = this.level + 1
 
-		const result: SimulationResult = {
-			targetLevel,
-			totalAttempts: 0,
-			successes: 0,
-			failures: 0,
-			anvilTriggers: 0,
-			restorationAttempts: 0,
-			restorationSuccesses: 0,
-			levelDrops: 0,
-			materialsUsed: {},
-			silverCost: 0,
-			attemptHistory: [],
+		// Determine valks and get rate
+		let valksType: string | null = null
+		let baseRate: number
+
+		if (this.valks100From > 0 && nextLevel >= this.valks100From) {
+			valksType = '100'
+			baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+		} else if (this.valks50From > 0 && nextLevel >= this.valks50From) {
+			valksType = '50'
+			baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+		} else if (this.valks10From > 0 && nextLevel >= this.valks10From) {
+			valksType = '10'
+			baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+		} else {
+			baseRate = RATE_CACHE[nextLevel] ?? 0.01
 		}
 
-		while (gear.awakeningLevel < targetLevel && result.totalAttempts < maxAttempts) {
-			const attempt = this.attemptEnhancement(gear, strategy)
-			result.totalAttempts++
+		// Check anvil pity
+		const currentEnergy = this.anvilEnergy[nextLevel] ?? 0
+		const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+		const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
 
-			if (recordHistory) {
-				result.attemptHistory.push(attempt)
+		// Resource tracking
+		this.attempts++
+		this.crystals++
+		this.silver += this.crystalPrice
+
+		if (valksType === '10') {
+			this.valks10Used++
+			this.silver += this.valks10Price
+		} else if (valksType === '50') {
+			this.valks50Used++
+			this.silver += this.valks50Price
+		} else if (valksType === '100') {
+			this.valks100Used++
+			this.silver += this.valks100Price
+		}
+
+		if (anvilTriggered || this.rng() < baseRate) {
+			// Success
+			this.level = nextLevel
+			this.anvilEnergy[nextLevel] = 0
+			return {
+				success: true,
+				anvilTriggered,
+				startingLevel,
+				endingLevel: nextLevel,
+				valksUsed: valksType,
+				restorationAttempted: false,
+				restorationSuccess: false,
+				isHeptaOkta: false,
+				subProgress: 0,
+				subPity: 0,
+				pathComplete: false,
+				pathName: '',
 			}
+		}
 
-			if (attempt.success) {
-				result.successes++
+		// Failure
+		this.anvilEnergy[nextLevel] = currentEnergy + 1
+		let restorationAttempted = false
+		let restorationSuccess = false
+		let endingLevel = this.level
+
+		if (this.level > 0 && this.restorationFrom > 0 && this.level >= this.restorationFrom) {
+			restorationAttempted = true
+			this.scrolls += RESTORATION_PER_ATTEMPT
+			this.silver += this.restorationAttemptCost
+
+			if (this.rng() < RESTORATION_SUCCESS_RATE) {
+				restorationSuccess = true
 			} else {
-				result.failures++
+				this.level--
+				endingLevel = this.level
 			}
-
-			if (attempt.anvilTriggered) {
-				result.anvilTriggers++
-			}
-
-			if (attempt.restorationAttempted) {
-				result.restorationAttempts++
-				if (attempt.restorationSuccess) {
-					result.restorationSuccesses++
-				} else {
-					result.levelDrops++
-				}
-			} else if (!attempt.success && attempt.startingLevel > 0) {
-				result.levelDrops++
-			}
-
-			// Accumulate materials
-			for (const [mat, amount] of Object.entries(attempt.materialsCost)) {
-				result.materialsUsed[mat] = (result.materialsUsed[mat] ?? 0) + amount
-			}
+		} else if (this.level > 0) {
+			this.level--
+			endingLevel = this.level
 		}
-
-		// Calculate silver cost
-		for (const [mat, amount] of Object.entries(result.materialsUsed)) {
-			result.silverCost += (this.prices[mat] ?? 0) * amount
-		}
-
-		return result
-	}
-
-	/** Run multiple simulations and return statistics */
-	runMonteCarlo(
-		targetLevel: number,
-		strategy: EnhancementStrategy,
-		numSimulations = 10_000,
-		startingState?: GearState,
-		onProgress?: (completed: number, total: number) => void
-	): MonteCarloResult {
-		const results: SimulationResult[] = []
-
-		for (let i = 0; i < numSimulations; i++) {
-			const result = this.simulateToTarget(targetLevel, strategy, startingState)
-			results.push(result)
-
-			if (onProgress && i % 100 === 0) {
-				onProgress(i, numSimulations)
-			}
-		}
-
-		if (onProgress) {
-			onProgress(numSimulations, numSimulations)
-		}
-
-		// Sort arrays for percentile calculations
-		const attempts = results.map((r) => r.totalAttempts).sort((a, b) => a - b)
-		const silverCosts = results.map((r) => r.silverCost).sort((a, b) => a - b)
-		const crystals = results
-			.map((r) => r.materialsUsed.pristine_black_crystal ?? 0)
-			.sort((a, b) => a - b)
-		const scrolls = results
-			.map((r) => r.materialsUsed.restoration_scroll ?? 0)
-			.sort((a, b) => a - b)
-		const levelDrops = results.map((r) => r.levelDrops).sort((a, b) => a - b)
-		const anvilTriggers = results.map((r) => r.anvilTriggers).sort((a, b) => a - b)
 
 		return {
-			numSimulations,
-			targetLevel,
-			strategy: {
-				restoration: strategy.restoration,
-				valks: strategy.valks,
-			},
-			attempts: calcPercentiles(attempts),
-			silverCost: calcPercentiles(silverCosts),
-			pristineBlackCrystals: calcPercentiles(crystals),
-			restorationScrolls: calcPercentiles(scrolls),
-			levelDrops: calcPercentiles(levelDrops),
-			anvilTriggers: {
-				average: average(anvilTriggers),
-				p50: percentile(anvilTriggers, 0.5),
-				p90: percentile(anvilTriggers, 0.9),
-				p99: percentile(anvilTriggers, 0.99),
-			},
+			success: false,
+			anvilTriggered: false,
+			startingLevel,
+			endingLevel,
+			valksUsed: valksType,
+			restorationAttempted,
+			restorationSuccess,
+			isHeptaOkta: false,
+			subProgress: 0,
+			subPity: 0,
+			pathComplete: false,
+			pathName: '',
 		}
 	}
-}
 
-function percentile(sorted: number[], p: number): number {
-	const idx = Math.floor(sorted.length * p)
-	return sorted[Math.min(idx, sorted.length - 1)] ?? 0
-}
+	/** Run simulation to completion */
+	runFullSimulation(recordSteps = false): SimulationResult {
+		const steps: StepResult[] = []
 
-function average(arr: number[]): number {
-	return arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
-}
+		while (!this.isComplete()) {
+			const step = this.step()
+			if (recordSteps) {
+				steps.push(step)
+			}
+		}
 
-function calcPercentiles(sorted: number[]): PercentileStats {
-	return {
-		average: average(sorted),
-		p50: percentile(sorted, 0.5),
-		p90: percentile(sorted, 0.9),
-		p99: percentile(sorted, 0.99),
-		worst: sorted[sorted.length - 1] ?? 0,
+		return {
+			crystals: this.crystals,
+			scrolls: this.scrolls,
+			silver: this.silver,
+			exquisiteCrystals: this.exquisiteCrystals,
+			attempts: this.attempts,
+			finalLevel: this.level,
+			anvilEnergy: { ...this.anvilEnergy },
+			valks10Used: this.valks10Used,
+			valks50Used: this.valks50Used,
+			valks100Used: this.valks100Used,
+			steps: recordSteps ? steps : undefined,
+		}
+	}
+
+	/** Fast simulation returning minimal tuple (crystals, scrolls, silver, exquisite) */
+	runFast(): [number, number, number, number] {
+		// Local variable caching for maximum performance
+		let level = this.level
+		const targetLevel = this.targetLevel
+		const anvilEnergy = this.anvilEnergy
+		const rng = this.rng
+
+		const restorationFrom = this.restorationFrom
+		const useHepta = this.useHepta
+		const useOkta = this.useOkta
+		const valks100From = this.valks100From
+		const valks50From = this.valks50From
+		const valks10From = this.valks10From
+		const crystalPrice = this.crystalPrice
+		const valks10Price = this.valks10Price
+		const valks50Price = this.valks50Price
+		const valks100Price = this.valks100Price
+		const restorationCost = this.restorationAttemptCost
+		const exquisiteCost = this.exquisiteCost
+
+		let crystals = 0
+		let scrolls = 0
+		let silver = 0
+		let exquisiteCrystals = 0
+
+		let heptaProgress = this.heptaProgress
+		let oktaProgress = this.oktaProgress
+		let heptaPity = 0
+		let oktaPity = 0
+
+		while (level < targetLevel) {
+			// Check Hepta path
+			if (
+				(useHepta || heptaProgress > 0) &&
+				level === 7 &&
+				heptaProgress < HEPTA_SUB_ENHANCEMENTS
+			) {
+				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+
+				if (heptaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+					heptaProgress++
+					heptaPity = 0
+					if (heptaProgress >= HEPTA_SUB_ENHANCEMENTS) {
+						level = 8
+						anvilEnergy[8] = 0
+						heptaProgress = 0
+					}
+				} else {
+					heptaPity++
+				}
+				continue
+			}
+
+			// Check Okta path
+			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < OKTA_SUB_ENHANCEMENTS) {
+				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+
+				if (oktaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+					oktaProgress++
+					oktaPity = 0
+					if (oktaProgress >= OKTA_SUB_ENHANCEMENTS) {
+						level = 9
+						anvilEnergy[9] = 0
+						oktaProgress = 0
+					}
+				} else {
+					oktaPity++
+				}
+				continue
+			}
+
+			// Normal enhancement
+			const nextLevel = level + 1
+
+			// Get rate based on valks
+			let baseRate: number
+			if (valks100From > 0 && nextLevel >= valks100From) {
+				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+				silver += valks100Price
+			} else if (valks50From > 0 && nextLevel >= valks50From) {
+				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+				silver += valks50Price
+			} else if (valks10From > 0 && nextLevel >= valks10From) {
+				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+				silver += valks10Price
+			} else {
+				baseRate = RATE_CACHE[nextLevel] ?? 0.01
+			}
+
+			crystals++
+			silver += crystalPrice
+
+			// Check anvil pity
+			const currentEnergy = anvilEnergy[nextLevel] ?? 0
+			const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+			const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
+
+			if (anvilTriggered || rng() < baseRate) {
+				level = nextLevel
+				anvilEnergy[nextLevel] = 0
+			} else {
+				anvilEnergy[nextLevel] = currentEnergy + 1
+				if (level > 0 && restorationFrom > 0 && level >= restorationFrom) {
+					scrolls += RESTORATION_PER_ATTEMPT
+					silver += restorationCost
+					if (rng() >= RESTORATION_SUCCESS_RATE) {
+						level--
+					}
+				} else if (level > 0) {
+					level--
+				}
+			}
+		}
+
+		return [crystals, scrolls, silver, exquisiteCrystals]
 	}
 }

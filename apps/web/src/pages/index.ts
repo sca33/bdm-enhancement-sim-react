@@ -1,0 +1,6 @@
+export { HomePage } from './home'
+export { MarketPricesPage } from './market-prices'
+export { AwakeningConfigPage } from './awakening-config'
+export { SimulationPage } from './simulation'
+export { RestorationStrategyPage } from './restoration-strategy'
+export { HeptaOktaStrategyPage } from './hepta-okta-strategy'

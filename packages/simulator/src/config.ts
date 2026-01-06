@@ -37,49 +37,41 @@ export const ANVIL_THRESHOLDS: Record<number, number> = {
 	10: 100, // X - guaranteed after 100 failures
 }
 
-/** Material costs per awakening enhancement attempt */
-export const MATERIAL_COSTS: Record<number, number> = {
-	1: 1,
-	2: 1,
-	3: 1,
-	4: 1,
-	5: 1,
-	6: 1,
-	7: 1,
-	8: 1,
-	9: 1,
-	10: 1,
-}
-
-/** Restoration scroll costs per awakening level */
-export const RESTORATION_SCROLL_COSTS: Record<number, number> = {
-	1: 200,
-	2: 200,
-	3: 200,
-	4: 200,
-	5: 200,
-	6: 200,
-	7: 200,
-	8: 200,
-	9: 200,
-	10: 200,
-}
-
 /** Restoration scroll success rate (50% chance to prevent downgrade) */
 export const RESTORATION_SUCCESS_RATE = 0.5
+
+/** Restoration scrolls per attempt */
+export const RESTORATION_PER_ATTEMPT = 200
+
+/** Restoration market bundle size (200K scrolls per bundle) */
+export const RESTORATION_MARKET_BUNDLE_SIZE = 200_000
 
 /** Hepta/Okta sub-enhancement success rate (6% per attempt) */
 export const HEPTA_OKTA_SUCCESS_RATE = 0.06
 
-/** Advice of Valks bonuses (MULTIPLICATIVE, not additive) */
-export const VALKS_MULTIPLIERS = {
-	10: 1.1, // +10% = x1.1
-	50: 1.5, // +50% = x1.5
-	100: 2.0, // +100% = x2.0
-} as const
+/** Hepta sub-enhancements needed for VII→VIII */
+export const HEPTA_SUB_ENHANCEMENTS = 5
 
-/** Arkram's Prophecy bonus (+10% flat) */
-export const ARKRAM_PROPHECY_BONUS = 0.1
+/** Okta sub-enhancements needed for VIII→IX */
+export const OKTA_SUB_ENHANCEMENTS = 10
+
+/** Hepta/Okta anvil pity (17 failures = guaranteed success) */
+export const HEPTA_OKTA_ANVIL_PITY = 17
+
+/** Exquisite Black Crystals per Hepta/Okta attempt */
+export const HEPTA_OKTA_CRYSTALS_PER_ATTEMPT = 15
+
+/** Exquisite Black Crystal crafting recipe */
+export const EXQUISITE_BLACK_CRYSTAL_RECIPE = {
+	restorationScrolls: 1050,
+	valks100: 2,
+	pristineBlackCrystal: 30,
+}
+
+/** Valks multipliers (multiplicative, not additive) */
+export const VALKS_MULTIPLIER_10 = 1.1 // +10% = x1.1
+export const VALKS_MULTIPLIER_50 = 1.5 // +50% = x1.5
+export const VALKS_MULTIPLIER_100 = 2.0 // +100% = x2.0
 
 /** Level display names */
 export const ROMAN_NUMERALS: Record<number, string> = {
@@ -97,10 +89,36 @@ export const ROMAN_NUMERALS: Record<number, string> = {
 }
 
 /** Default market prices in silver */
-export const DEFAULT_PRICES: Record<string, number> = {
-	pristine_black_crystal: 50_000_000, // 50M
-	restoration_scroll: 100_000, // 100K per scroll (200 scrolls = 20M)
-	valks_advice_10: 10_000_000, // 10M
-	valks_advice_50: 50_000_000, // 50M
-	valks_advice_100: 100_000_000, // 100M
+export const DEFAULT_PRICES = {
+	crystalPrice: 34_650_000, // 34.65M per pristine black crystal
+	restorationBundlePrice: 1_000_000_000_000, // 1T for 200K scrolls
+	valks10Price: 0, // Not on market
+	valks50Price: 0, // Not on market
+	valks100Price: 0, // Not on market
 }
+
+/** Pre-computed rate caches for performance */
+export const RATE_CACHE = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [Number(level), rate])
+)
+
+export const RATE_CACHE_VALKS_10 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_10),
+	])
+)
+
+export const RATE_CACHE_VALKS_50 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_50),
+	])
+)
+
+export const RATE_CACHE_VALKS_100 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_100),
+	])
+)

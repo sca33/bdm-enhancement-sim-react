@@ -23,3 +23,18 @@ export function formatNumber(num: number): string {
 export function formatSilver(silver: number): string {
 	return `${formatNumber(silver)} Silver`
 }
+
+/** Format time based on attempts (seconds) */
+export function formatTime(seconds: number): string {
+	if (seconds < 60) {
+		return `${seconds}s`
+	}
+	if (seconds < 3600) {
+		const mins = Math.floor(seconds / 60)
+		const secs = seconds % 60
+		return `${mins}m ${secs}s`
+	}
+	const hours = Math.floor(seconds / 3600)
+	const mins = Math.floor((seconds % 3600) / 60)
+	return `${hours}h ${mins}m`
+}
