@@ -14,7 +14,8 @@ import { useStrategyWorker } from '@/hooks/use-strategy-worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 export function HeptaOktaStrategyPage() {
-	const { config, numSimulations, setPage, heptaOktaStrategyResults, setHeptaOktaStrategyResults } = useStore()
+	const { config, numSimulations, setPage, heptaOktaStrategyResults, setHeptaOktaStrategyResults } =
+		useStore()
 
 	const { runHeptaOktaStrategy, heptaOktaProgress, isHeptaOktaRunning } = useStrategyWorker()
 

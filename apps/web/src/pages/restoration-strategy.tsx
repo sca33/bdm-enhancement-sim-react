@@ -8,7 +8,13 @@ import { useStrategyWorker } from '@/hooks/use-strategy-worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 export function RestorationStrategyPage() {
-	const { config, numSimulations, setPage, restorationStrategyResults, setRestorationStrategyResults } = useStore()
+	const {
+		config,
+		numSimulations,
+		setPage,
+		restorationStrategyResults,
+		setRestorationStrategyResults,
+	} = useStore()
 
 	const { runRestorationStrategy, restorationProgress, isRestorationRunning } = useStrategyWorker()
 

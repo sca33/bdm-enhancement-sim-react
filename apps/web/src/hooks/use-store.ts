@@ -102,6 +102,9 @@ interface AppState {
 	oktaProgress: number
 	heptaPity: number
 	oktaPity: number
+	// Time tracking for statistics
+	simulationStartTime: number | null
+	simulationElapsedTime: number
 	stats: {
 		crystals: number
 		scrolls: number
@@ -209,6 +212,8 @@ export const useStore = create<AppState>()(
 			oktaProgress: 0,
 			heptaPity: 0,
 			oktaPity: 0,
+			simulationStartTime: null,
+			simulationElapsedTime: 0,
 			stats: {
 				crystals: 0,
 				scrolls: 0,
@@ -257,6 +262,8 @@ export const useStore = create<AppState>()(
 					oktaProgress: state.config.startOkta,
 					heptaPity: 0,
 					oktaPity: 0,
+					simulationStartTime: Date.now(),
+					simulationElapsedTime: 0,
 					stats: {
 						crystals: 0,
 						scrolls: 0,
@@ -275,9 +282,25 @@ export const useStore = create<AppState>()(
 				})
 			},
 
-			pauseSimulation: () => set({ isPaused: true }),
-			resumeSimulation: () => set({ isPaused: false }),
-			stopSimulation: () => set({ isRunning: false, isPaused: false, _engine: null }),
+			pauseSimulation: () =>
+				set((state) => ({
+					isPaused: true,
+					simulationElapsedTime:
+						state.simulationElapsedTime +
+						(state.simulationStartTime ? (Date.now() - state.simulationStartTime) / 1000 : 0),
+					simulationStartTime: null,
+				})),
+			resumeSimulation: () => set({ isPaused: false, simulationStartTime: Date.now() }),
+			stopSimulation: () =>
+				set((state) => ({
+					isRunning: false,
+					isPaused: false,
+					simulationElapsedTime:
+						state.simulationElapsedTime +
+						(state.simulationStartTime ? (Date.now() - state.simulationStartTime) / 1000 : 0),
+					simulationStartTime: null,
+					_engine: null,
+				})),
 
 			stepSimulation: () => {
 				const state = get()

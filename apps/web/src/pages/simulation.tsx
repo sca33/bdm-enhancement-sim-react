@@ -8,7 +8,7 @@ import {
 } from '@bdm-sim/simulator'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { SimulationHistory } from '@/components/simulation-history'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
@@ -36,6 +36,8 @@ export function SimulationPage() {
 	const maxLevel = useStore((s) => s.maxLevel)
 	const attempts = useStore((s) => s.attempts)
 	const stats = useStore((s) => s.stats)
+	const simulationStartTime = useStore((s) => s.simulationStartTime)
+	const simulationElapsedTime = useStore((s) => s.simulationElapsedTime)
 
 	// Stats panel state
 	const anvilEnergy = useStore((s) => s.anvilEnergy)
@@ -54,6 +56,21 @@ export function SimulationPage() {
 	const isActiveRef = useRef(false)
 	const [flash, setFlash] = useState<FlashType>('none')
 	const [isCalculating, setIsCalculating] = useState(false)
+
+	// Calculate displayed time based on speed mode
+	const displayedTime = useMemo(() => {
+		if (speed === 'regular') {
+			// Real elapsed time for in-game mode (whole seconds)
+			const currentElapsed =
+				isRunning && !isPaused && simulationStartTime
+					? (Date.now() - simulationStartTime) / 1000
+					: 0
+			return Math.floor(simulationElapsedTime + currentElapsed)
+		}
+		// Estimated in-game time for instant/fast modes
+		// Average animation time is 0.75s (midpoint of 0.5-1.0s)
+		return Math.floor(attempts * 0.75)
+	}, [speed, attempts, isRunning, isPaused, simulationStartTime, simulationElapsedTime])
 
 	// Virtual list for log entries - only renders visible items (~30 instead of 20,000+)
 	const virtualizer = useVirtualizer({
@@ -342,7 +359,7 @@ export function SimulationPage() {
 						</div>
 						<div className="flex justify-between text-muted-foreground">
 							<span>Time:</span>
-							<span>{formatTime(attempts)}</span>
+							<span>{formatTime(displayedTime)}</span>
 						</div>
 					</CardContent>
 				</Card>
