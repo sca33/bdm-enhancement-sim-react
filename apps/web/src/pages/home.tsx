@@ -41,6 +41,15 @@ export function HomePage() {
 					</Card>
 				))}
 			</div>
+
+			{/* Version info */}
+			<div className="text-center text-xs text-muted-foreground pt-4 border-t border-border">
+				<p>
+					Build: <code className="bg-muted px-1 rounded">{__BUILD_VERSION__}</code>
+					<span className="mx-2">|</span>
+					{new Date(__BUILD_TIME__).toLocaleString()}
+				</p>
+			</div>
 		</div>
 	)
 }
