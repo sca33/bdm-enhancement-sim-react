@@ -3,7 +3,6 @@ import {
 	DEFAULT_CONFIG,
 	DEFAULT_PRICES,
 	type MarketPrices,
-	ROMAN_NUMERALS,
 	type SimulationConfig,
 	type SimulationResult,
 	type StepResult,
@@ -47,6 +46,7 @@ export interface SavedRun {
 const SAVED_RUNS_KEY = 'bdm-sim-saved-runs'
 const MAX_SAVED_RUNS = 50
 const STEP_BUFFER_SIZE = 1000 // Ring buffer size for step history
+const CURRENT_BUILD_VERSION = typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : 'dev'
 
 function loadSavedRuns(): SavedRun[] {
 	try {
@@ -126,7 +126,7 @@ interface AppState {
 	stopSimulation: () => void
 	stepSimulation: () => StepResult | null
 
-	// Strategy results
+	// Strategy results (set from worker via hooks)
 	restorationStrategyResults: Array<{
 		restorationFrom: number
 		label: string
@@ -142,9 +142,8 @@ interface AppState {
 		p90: { crystals: number; scrolls: number; silver: number; exquisite: number }
 		worst: { crystals: number; scrolls: number; silver: number; exquisite: number }
 	}>
-	strategyProgress: number
-	runRestorationStrategy: () => Promise<void>
-	runHeptaOktaStrategy: () => Promise<void>
+	setRestorationStrategyResults: (results: AppState['restorationStrategyResults']) => void
+	setHeptaOktaStrategyResults: (results: AppState['heptaOktaStrategyResults']) => void
 
 	// Engine instance
 	_engine: AwakeningEngine | null
@@ -343,190 +342,11 @@ export const useStore = create<AppState>()(
 				return step
 			},
 
-			// Strategy results
+			// Strategy results (set from worker via hooks)
 			restorationStrategyResults: [],
 			heptaOktaStrategyResults: [],
-			strategyProgress: 0,
-
-			runRestorationStrategy: async () => {
-				const state = get()
-				const numSims = state.numSimulations
-				const targetLevel = state.config.targetLevel
-				const prices = state.prices
-
-				// Test restoration from IV to target-1
-				const restorationOptions: number[] = []
-				for (let i = 4; i < targetLevel; i++) {
-					restorationOptions.push(i)
-				}
-
-				const results: AppState['restorationStrategyResults'] = []
-				set({ strategyProgress: 0, restorationStrategyResults: [] })
-
-				const totalRuns = restorationOptions.length * numSims
-				let completed = 0
-
-				for (const restFrom of restorationOptions) {
-					// Pre-allocate typed arrays for performance
-					const silverResults = new Float64Array(numSims)
-					const crystalResults = new Uint32Array(numSims)
-					const scrollResults = new Uint32Array(numSims)
-
-					// Create fresh config for this strategy
-					const simConfig: SimulationConfig = {
-						...state.config,
-						startLevel: 0,
-						startHepta: 0,
-						startOkta: 0,
-						restorationFrom: restFrom,
-						useHepta: false,
-						useOkta: false,
-						prices,
-					}
-
-					// Run simulations
-					for (let i = 0; i < numSims; i++) {
-						const engine = new AwakeningEngine(simConfig)
-						const [crystals, scrolls, silver] = engine.runFast()
-
-						silverResults[i] = silver
-						crystalResults[i] = crystals
-						scrollResults[i] = scrolls
-
-						completed++
-						if (completed % 500 === 0) {
-							set({ strategyProgress: (completed / totalRuns) * 100 })
-							await new Promise((r) => setTimeout(r, 0))
-						}
-					}
-
-					// Sort indices by silver for percentile calculation
-					const indices = Array.from({ length: numSims }, (_, i) => i)
-					indices.sort((a, b) => silverResults[a] - silverResults[b])
-
-					// Calculate percentile indices with bounds check
-					const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
-					const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
-					const worstIdx = numSims - 1
-
-					results.push({
-						restorationFrom: restFrom,
-						label: `+${ROMAN_NUMERALS[restFrom]}`,
-						p50: {
-							crystals: crystalResults[indices[p50Idx]],
-							scrolls: scrollResults[indices[p50Idx]],
-							silver: silverResults[indices[p50Idx]],
-						},
-						p90: {
-							crystals: crystalResults[indices[p90Idx]],
-							scrolls: scrollResults[indices[p90Idx]],
-							silver: silverResults[indices[p90Idx]],
-						},
-						worst: {
-							crystals: crystalResults[indices[worstIdx]],
-							scrolls: scrollResults[indices[worstIdx]],
-							silver: silverResults[indices[worstIdx]],
-						},
-					})
-
-					set({ restorationStrategyResults: [...results] })
-				}
-
-				set({ strategyProgress: 100 })
-			},
-
-			runHeptaOktaStrategy: async () => {
-				const state = get()
-				const numSims = state.numSimulations
-				const prices = state.prices
-
-				const strategies = [
-					{ useHepta: true, useOkta: true, label: 'Hepta+Okta' },
-					{ useHepta: true, useOkta: false, label: 'Hepta only' },
-					{ useHepta: false, useOkta: true, label: 'Okta only' },
-					{ useHepta: false, useOkta: false, label: 'Normal' },
-				]
-
-				const results: AppState['heptaOktaStrategyResults'] = []
-				set({ strategyProgress: 0, heptaOktaStrategyResults: [] })
-
-				const totalRuns = strategies.length * numSims
-				let completed = 0
-
-				for (const { useHepta, useOkta, label } of strategies) {
-					// Pre-allocate typed arrays for performance
-					const silverResults = new Float64Array(numSims)
-					const crystalResults = new Uint32Array(numSims)
-					const scrollResults = new Uint32Array(numSims)
-					const exquisiteResults = new Uint32Array(numSims)
-
-					// Create fresh config for this strategy
-					const simConfig: SimulationConfig = {
-						...state.config,
-						startLevel: 0,
-						startHepta: 0,
-						startOkta: 0,
-						restorationFrom: 6,
-						useHepta,
-						useOkta,
-						prices,
-					}
-
-					// Run simulations
-					for (let i = 0; i < numSims; i++) {
-						const engine = new AwakeningEngine(simConfig)
-						const [crystals, scrolls, silver, exquisite] = engine.runFast()
-
-						silverResults[i] = silver
-						crystalResults[i] = crystals
-						scrollResults[i] = scrolls
-						exquisiteResults[i] = exquisite
-
-						completed++
-						if (completed % 500 === 0) {
-							set({ strategyProgress: (completed / totalRuns) * 100 })
-							await new Promise((r) => setTimeout(r, 0))
-						}
-					}
-
-					// Sort indices by silver for percentile calculation
-					const indices = Array.from({ length: numSims }, (_, i) => i)
-					indices.sort((a, b) => silverResults[a] - silverResults[b])
-
-					// Calculate percentile indices with bounds check
-					const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
-					const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
-					const worstIdx = numSims - 1
-
-					results.push({
-						useHepta,
-						useOkta,
-						label,
-						p50: {
-							crystals: crystalResults[indices[p50Idx]],
-							scrolls: scrollResults[indices[p50Idx]],
-							silver: silverResults[indices[p50Idx]],
-							exquisite: exquisiteResults[indices[p50Idx]],
-						},
-						p90: {
-							crystals: crystalResults[indices[p90Idx]],
-							scrolls: scrollResults[indices[p90Idx]],
-							silver: silverResults[indices[p90Idx]],
-							exquisite: exquisiteResults[indices[p90Idx]],
-						},
-						worst: {
-							crystals: crystalResults[indices[worstIdx]],
-							scrolls: scrollResults[indices[worstIdx]],
-							silver: silverResults[indices[worstIdx]],
-							exquisite: exquisiteResults[indices[worstIdx]],
-						},
-					})
-
-					set({ heptaOktaStrategyResults: [...results] })
-				}
-
-				set({ strategyProgress: 100 })
-			},
+			setRestorationStrategyResults: (results) => set({ restorationStrategyResults: results }),
+			setHeptaOktaStrategyResults: (results) => set({ heptaOktaStrategyResults: results }),
 
 			_engine: null,
 
@@ -629,10 +449,24 @@ export const useStore = create<AppState>()(
 				prices: state.prices,
 				config: state.config,
 				numSimulations: state.numSimulations,
+				buildVersion: CURRENT_BUILD_VERSION,
 			}),
 			// Merge persisted state with defaults to handle schema changes
 			merge: (persistedState, currentState) => {
-				const persisted = persistedState as Partial<AppState>
+				const persisted = persistedState as Partial<AppState> & { buildVersion?: string }
+
+				// Check if build version changed - if so, reset to defaults
+				if (persisted.buildVersion && persisted.buildVersion !== CURRENT_BUILD_VERSION) {
+					console.log(
+						`[Store] Build version changed: ${persisted.buildVersion} → ${CURRENT_BUILD_VERSION}. Resetting to defaults.`,
+					)
+					return {
+						...currentState,
+						prices: { ...DEFAULT_PRICES },
+						config: { ...DEFAULT_CONFIG },
+					}
+				}
+
 				return {
 					...currentState,
 					prices: { ...DEFAULT_PRICES, ...persisted.prices },

@@ -1,21 +1,29 @@
-import { HEPTA_SUB_ENHANCEMENTS, OKTA_SUB_ENHANCEMENTS, ROMAN_NUMERALS } from '@bdm-sim/simulator'
+import {
+	DEFAULT_CONFIG,
+	DEFAULT_PRICES,
+	HEPTA_SUB_ENHANCEMENTS,
+	OKTA_SUB_ENHANCEMENTS,
+	ROMAN_NUMERALS,
+} from '@bdm-sim/simulator'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
+import { useStrategyWorker } from '@/hooks/use-strategy-worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 export function HeptaOktaStrategyPage() {
-	const {
-		config,
-		numSimulations,
-		setPage,
-		heptaOktaStrategyResults,
-		strategyProgress,
-		runHeptaOktaStrategy,
-	} = useStore()
-	const [isRunning, setIsRunning] = useState(false)
+	const { config, numSimulations, setPage, heptaOktaStrategyResults, setHeptaOktaStrategyResults } = useStore()
+
+	const { runHeptaOktaStrategy, heptaOktaProgress, isHeptaOktaRunning } = useStrategyWorker()
+
+	// Strategy finder uses isolated config - only targetLevel from user's config
+	const strategyConfig = {
+		...DEFAULT_CONFIG,
+		targetLevel: config.targetLevel,
+		prices: DEFAULT_PRICES,
+	}
 
 	useEffect(() => {
 		if (heptaOktaStrategyResults.length === 0) {
@@ -24,9 +32,12 @@ export function HeptaOktaStrategyPage() {
 	}, [])
 
 	const startAnalysis = async () => {
-		setIsRunning(true)
-		await runHeptaOktaStrategy()
-		setIsRunning(false)
+		try {
+			const results = await runHeptaOktaStrategy(strategyConfig, DEFAULT_PRICES, numSimulations)
+			setHeptaOktaStrategyResults(results)
+		} catch (error) {
+			console.error('Strategy analysis failed:', error)
+		}
 	}
 
 	return (
@@ -46,7 +57,7 @@ export function HeptaOktaStrategyPage() {
 			</div>
 
 			{/* Progress */}
-			{isRunning && (
+			{isHeptaOktaRunning && (
 				<Card>
 					<CardContent className="py-4">
 						<div className="flex items-center gap-3">
@@ -55,11 +66,11 @@ export function HeptaOktaStrategyPage() {
 								<div className="h-2 bg-muted rounded-full overflow-hidden">
 									<div
 										className="h-full bg-primary transition-all duration-300"
-										style={{ width: `${strategyProgress}%` }}
+										style={{ width: `${heptaOktaProgress}%` }}
 									/>
 								</div>
 							</div>
-							<span className="text-sm text-muted-foreground">{strategyProgress.toFixed(0)}%</span>
+							<span className="text-sm text-muted-foreground">{heptaOktaProgress.toFixed(0)}%</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -201,8 +212,8 @@ export function HeptaOktaStrategyPage() {
 				<Button variant="outline" onClick={() => setPage('awakening-config')}>
 					Back
 				</Button>
-				<Button onClick={startAnalysis} disabled={isRunning} className="flex-1">
-					{isRunning ? (
+				<Button onClick={startAnalysis} disabled={isHeptaOktaRunning} className="flex-1">
+					{isHeptaOktaRunning ? (
 						<>
 							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
 							Running...

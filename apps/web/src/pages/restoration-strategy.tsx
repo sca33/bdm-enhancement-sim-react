@@ -1,21 +1,23 @@
-import { ROMAN_NUMERALS } from '@bdm-sim/simulator'
+import { DEFAULT_CONFIG, DEFAULT_PRICES, ROMAN_NUMERALS } from '@bdm-sim/simulator'
 import { ArrowLeft, Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
+import { useStrategyWorker } from '@/hooks/use-strategy-worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 export function RestorationStrategyPage() {
-	const {
-		config,
-		numSimulations,
-		setPage,
-		restorationStrategyResults,
-		strategyProgress,
-		runRestorationStrategy,
-	} = useStore()
-	const [isRunning, setIsRunning] = useState(false)
+	const { config, numSimulations, setPage, restorationStrategyResults, setRestorationStrategyResults } = useStore()
+
+	const { runRestorationStrategy, restorationProgress, isRestorationRunning } = useStrategyWorker()
+
+	// Strategy finder uses isolated config - only targetLevel from user's config
+	const strategyConfig = {
+		...DEFAULT_CONFIG,
+		targetLevel: config.targetLevel,
+		prices: DEFAULT_PRICES,
+	}
 
 	useEffect(() => {
 		if (restorationStrategyResults.length === 0) {
@@ -24,9 +26,12 @@ export function RestorationStrategyPage() {
 	}, [])
 
 	const startAnalysis = async () => {
-		setIsRunning(true)
-		await runRestorationStrategy()
-		setIsRunning(false)
+		try {
+			const results = await runRestorationStrategy(strategyConfig, DEFAULT_PRICES, numSimulations)
+			setRestorationStrategyResults(results)
+		} catch (error) {
+			console.error('Strategy analysis failed:', error)
+		}
 	}
 
 	return (
@@ -46,7 +51,7 @@ export function RestorationStrategyPage() {
 			</div>
 
 			{/* Progress */}
-			{isRunning && (
+			{isRestorationRunning && (
 				<Card>
 					<CardContent className="py-4">
 						<div className="flex items-center gap-3">
@@ -55,11 +60,13 @@ export function RestorationStrategyPage() {
 								<div className="h-2 bg-muted rounded-full overflow-hidden">
 									<div
 										className="h-full bg-primary transition-all duration-300"
-										style={{ width: `${strategyProgress}%` }}
+										style={{ width: `${restorationProgress}%` }}
 									/>
 								</div>
 							</div>
-							<span className="text-sm text-muted-foreground">{strategyProgress.toFixed(0)}%</span>
+							<span className="text-sm text-muted-foreground">
+								{restorationProgress.toFixed(0)}%
+							</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -193,8 +200,8 @@ export function RestorationStrategyPage() {
 				<Button variant="outline" onClick={() => setPage('awakening-config')}>
 					Back
 				</Button>
-				<Button onClick={startAnalysis} disabled={isRunning} className="flex-1">
-					{isRunning ? (
+				<Button onClick={startAnalysis} disabled={isRestorationRunning} className="flex-1">
+					{isRestorationRunning ? (
 						<>
 							<Loader2 className="w-4 h-4 mr-2 animate-spin" />
 							Running...
