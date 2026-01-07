@@ -295,9 +295,9 @@ export function AwakeningConfigPage() {
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="fast">Fast</SelectItem>
 							<SelectItem value="instant">Instant</SelectItem>
-							<SelectItem value="regular">Regular (In-game speed)</SelectItem>
+							<SelectItem value="fast">Fast</SelectItem>
+							<SelectItem value="regular">In-game</SelectItem>
 						</SelectContent>
 					</Select>
 				</CardContent>

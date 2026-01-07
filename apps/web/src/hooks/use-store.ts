@@ -185,7 +185,7 @@ export const useStore = create<AppState>()(
 			resetConfig: () => set({ config: { ...DEFAULT_CONFIG } }),
 
 			// Speed
-			speed: 'fast',
+			speed: 'instant',
 			setSpeed: (speed) => set({ speed }),
 
 			// Monte Carlo
