@@ -72,3 +72,23 @@ body {
 .level-6, .level-7 { color: oklch(0.7 0.2 280); }
 .level-8, .level-9 { color: oklch(0.75 0.2 45); }
 .level-10 { color: oklch(0.85 0.22 25); }
+
+/* Flash animations for enhancement results */
+@keyframes flash-short {
+	0% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+@keyframes flash-long {
+	0% { opacity: 1; }
+	50% { opacity: 0.8; }
+	100% { opacity: 0; }
+}
+
+.animate-flash-short {
+	animation: flash-short 100ms ease-out forwards;
+}
+
+.animate-flash-long {
+	animation: flash-long 1s ease-out forwards;
+}

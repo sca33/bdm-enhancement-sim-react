@@ -8,6 +8,7 @@ import {
 import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { SimulationHistory } from '@/components/simulation-history'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { formatNumber, formatSilver, formatTime } from '@/lib/utils'
@@ -153,6 +154,7 @@ export function SimulationPage() {
 						<ArrowLeft className="w-4 h-4" />
 					</Button>
 					<span className="text-sm font-medium">Simulation</span>
+					<SimulationHistory />
 				</div>
 				<div className="flex items-center gap-2 text-xs">
 					<span>Target: +{ROMAN_NUMERALS[config.targetLevel]}</span>

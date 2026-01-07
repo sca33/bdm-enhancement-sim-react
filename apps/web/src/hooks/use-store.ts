@@ -8,12 +8,58 @@ import {
 	DEFAULT_PRICES,
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
+import LZString from 'lz-string'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type Page = 'home' | 'awakening-config' | 'simulation' | 'restoration-strategy' | 'hepta-okta-strategy'
 
 export type SimulationSpeed = 'instant' | 'fast' | 'regular'
+
+// Saved simulation run
+export interface SavedRun {
+	id: string
+	timestamp: number
+	targetLevel: number
+	silver: number
+	attempts: number
+	// Compressed step history
+	stepsCompressed: string
+	stats: {
+		crystals: number
+		scrolls: number
+		silver: number
+		exquisiteCrystals: number
+		valks10Used: number
+		valks50Used: number
+		valks100Used: number
+	}
+	levelSuccesses: Record<number, number>
+	anvilEnergy: Record<number, number>
+}
+
+const SAVED_RUNS_KEY = 'bdm-sim-saved-runs'
+const MAX_SAVED_RUNS = 50
+
+function loadSavedRuns(): SavedRun[] {
+	try {
+		const data = localStorage.getItem(SAVED_RUNS_KEY)
+		if (data) {
+			return JSON.parse(data)
+		}
+	} catch (e) {
+		console.error('Failed to load saved runs:', e)
+	}
+	return []
+}
+
+function persistSavedRuns(runs: SavedRun[]) {
+	try {
+		localStorage.setItem(SAVED_RUNS_KEY, JSON.stringify(runs))
+	} catch (e) {
+		console.error('Failed to save runs:', e)
+	}
+}
 
 interface AppState {
 	// Navigation
@@ -90,6 +136,13 @@ interface AppState {
 
 	// Engine instance
 	_engine: AwakeningEngine | null
+
+	// Saved simulation runs
+	savedRuns: SavedRun[]
+	saveCurrentRun: () => void
+	loadRun: (id: string) => void
+	deleteRun: (id: string) => void
+	clearAllRuns: () => void
 }
 
 export const useStore = create<AppState>()(
@@ -368,6 +421,70 @@ export const useStore = create<AppState>()(
 			},
 
 			_engine: null,
+
+			// Saved runs
+			savedRuns: loadSavedRuns(),
+
+			saveCurrentRun: () => {
+				const state = get()
+				if (state.stepHistory.length === 0) return
+
+				const run: SavedRun = {
+					id: crypto.randomUUID(),
+					timestamp: Date.now(),
+					targetLevel: state.config.targetLevel,
+					silver: state.stats.silver,
+					attempts: state.attempts,
+					stepsCompressed: LZString.compressToUTF16(JSON.stringify(state.stepHistory)),
+					stats: { ...state.stats },
+					levelSuccesses: { ...state.levelSuccesses },
+					anvilEnergy: { ...state.anvilEnergy },
+				}
+
+				const newRuns = [run, ...state.savedRuns].slice(0, MAX_SAVED_RUNS)
+				persistSavedRuns(newRuns)
+				set({ savedRuns: newRuns })
+			},
+
+			loadRun: (id: string) => {
+				const state = get()
+				const run = state.savedRuns.find((r) => r.id === id)
+				if (!run) return
+
+				try {
+					const steps = JSON.parse(
+						LZString.decompressFromUTF16(run.stepsCompressed) || '[]'
+					) as StepResult[]
+
+					set({
+						isRunning: false,
+						isPaused: false,
+						currentLevel: run.targetLevel,
+						maxLevel: run.targetLevel,
+						attempts: run.attempts,
+						anvilEnergy: run.anvilEnergy,
+						levelSuccesses: run.levelSuccesses,
+						stats: run.stats,
+						stepHistory: steps,
+						simulationResult: null,
+						_engine: null,
+					})
+				} catch (e) {
+					console.error('Failed to load run:', e)
+				}
+			},
+
+			deleteRun: (id: string) => {
+				const state = get()
+				const newRuns = state.savedRuns.filter((r) => r.id !== id)
+				persistSavedRuns(newRuns)
+				set({ savedRuns: newRuns })
+			},
+
+			clearAllRuns: () => {
+				persistSavedRuns([])
+				set({ savedRuns: [] })
+			},
 		}),
 		{
 			name: 'bdm-sim-storage',
