@@ -98,7 +98,7 @@ export function SimulationPage() {
 					setTimeout(runStep, 1)
 				})
 			} else {
-				// Regular speed - 1 second per step with flash animations
+				// Regular speed - random 0.5-1.0 second per step with flash animations
 				const isComplete = step.endingLevel >= config.targetLevel && step.success
 				if (isComplete) {
 					triggerFlash('complete', 1000)
@@ -108,8 +108,9 @@ export function SimulationPage() {
 					triggerFlash('fail', 100)
 				}
 
+				const delay = 500 + Math.random() * 500
 				animationRef.current = requestAnimationFrame(() => {
-					setTimeout(runStep, 1000)
+					setTimeout(runStep, delay)
 				})
 			}
 		}
