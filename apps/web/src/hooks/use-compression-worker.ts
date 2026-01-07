@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { CompressionRequest, CompressionResponse } from '../workers/compression.worker'
 
+/** Timeout for compression/decompression requests (30 seconds) */
+const REQUEST_TIMEOUT_MS = 30_000
+
 type PendingRequest = {
 	resolve: (value: string) => void
 	reject: (error: Error) => void
+	timeoutId: ReturnType<typeof setTimeout>
 }
 
 /**
@@ -25,6 +29,7 @@ export function useCompressionWorker() {
 				const { id, data, error } = event.data
 				const pending = pendingRef.current.get(id)
 				if (pending) {
+					clearTimeout(pending.timeoutId)
 					pendingRef.current.delete(id)
 					if (error) {
 						pending.reject(new Error(error))
@@ -37,17 +42,25 @@ export function useCompressionWorker() {
 			workerRef.current.onerror = (error) => {
 				console.error('Compression worker error:', error)
 				// Reject all pending requests
-				for (const [id, pending] of pendingRef.current) {
+				for (const [, pending] of pendingRef.current) {
+					clearTimeout(pending.timeoutId)
 					pending.reject(new Error('Worker error'))
-					pendingRef.current.delete(id)
 				}
+				pendingRef.current.clear()
 			}
 		} catch (e) {
 			console.warn('Web Workers not supported, falling back to sync compression')
 		}
 
 		return () => {
+			// Reject all pending requests before terminating
+			for (const [, pending] of pendingRef.current) {
+				clearTimeout(pending.timeoutId)
+				pending.reject(new Error('Worker terminated'))
+			}
+			pendingRef.current.clear()
 			workerRef.current?.terminate()
+			workerRef.current = null
 		}
 	}, [])
 
@@ -55,17 +68,21 @@ export function useCompressionWorker() {
 		return new Promise((resolve, reject) => {
 			if (!workerRef.current) {
 				// Fallback to sync if worker not available
-				try {
-					const LZString = require('lz-string')
-					resolve(LZString.compressToUTF16(data))
-				} catch (e) {
-					reject(e)
-				}
+				import('lz-string')
+					.then((LZString) => resolve(LZString.compressToUTF16(data)))
+					.catch(reject)
 				return
 			}
 
 			const id = crypto.randomUUID()
-			pendingRef.current.set(id, { resolve, reject })
+			const timeoutId = setTimeout(() => {
+				if (pendingRef.current.has(id)) {
+					pendingRef.current.delete(id)
+					reject(new Error('Compression timeout'))
+				}
+			}, REQUEST_TIMEOUT_MS)
+
+			pendingRef.current.set(id, { resolve, reject, timeoutId })
 			workerRef.current.postMessage({ type: 'compress', id, data } satisfies CompressionRequest)
 		})
 	}, [])
@@ -74,17 +91,21 @@ export function useCompressionWorker() {
 		return new Promise((resolve, reject) => {
 			if (!workerRef.current) {
 				// Fallback to sync if worker not available
-				try {
-					const LZString = require('lz-string')
-					resolve(LZString.decompressFromUTF16(data) || '')
-				} catch (e) {
-					reject(e)
-				}
+				import('lz-string')
+					.then((LZString) => resolve(LZString.decompressFromUTF16(data) || ''))
+					.catch(reject)
 				return
 			}
 
 			const id = crypto.randomUUID()
-			pendingRef.current.set(id, { resolve, reject })
+			const timeoutId = setTimeout(() => {
+				if (pendingRef.current.has(id)) {
+					pendingRef.current.delete(id)
+					reject(new Error('Decompression timeout'))
+				}
+			}, REQUEST_TIMEOUT_MS)
+
+			pendingRef.current.set(id, { resolve, reject, timeoutId })
 			workerRef.current.postMessage({ type: 'decompress', id, data } satisfies CompressionRequest)
 		})
 	}, [])
@@ -108,6 +129,7 @@ function getGlobalWorker(): Worker | null {
 			const { id, data, error } = event.data
 			const pending = globalPending.get(id)
 			if (pending) {
+				clearTimeout(pending.timeoutId)
 				globalPending.delete(id)
 				if (error) {
 					pending.reject(new Error(error))
@@ -116,11 +138,38 @@ function getGlobalWorker(): Worker | null {
 				}
 			}
 		}
+
+		globalWorker.onerror = (error) => {
+			console.error('Global compression worker error:', error)
+			// Reject all pending requests
+			for (const [, pending] of globalPending) {
+				clearTimeout(pending.timeoutId)
+				pending.reject(new Error('Worker error'))
+			}
+			globalPending.clear()
+		}
 	} catch (e) {
 		console.warn('Web Workers not supported')
 	}
 
 	return globalWorker
+}
+
+/**
+ * Terminate the global worker instance.
+ * Call this when the worker is no longer needed to free resources.
+ */
+export function terminateGlobalWorker(): void {
+	if (globalWorker) {
+		// Reject all pending requests
+		for (const [, pending] of globalPending) {
+			clearTimeout(pending.timeoutId)
+			pending.reject(new Error('Worker terminated'))
+		}
+		globalPending.clear()
+		globalWorker.terminate()
+		globalWorker = null
+	}
 }
 
 /**
@@ -137,7 +186,14 @@ export async function compressAsync(data: string): Promise<string> {
 
 	return new Promise((resolve, reject) => {
 		const id = crypto.randomUUID()
-		globalPending.set(id, { resolve, reject })
+		const timeoutId = setTimeout(() => {
+			if (globalPending.has(id)) {
+				globalPending.delete(id)
+				reject(new Error('Compression timeout'))
+			}
+		}, REQUEST_TIMEOUT_MS)
+
+		globalPending.set(id, { resolve, reject, timeoutId })
 		worker.postMessage({ type: 'compress', id, data } satisfies CompressionRequest)
 	})
 }
@@ -156,7 +212,14 @@ export async function decompressAsync(data: string): Promise<string> {
 
 	return new Promise((resolve, reject) => {
 		const id = crypto.randomUUID()
-		globalPending.set(id, { resolve, reject })
+		const timeoutId = setTimeout(() => {
+			if (globalPending.has(id)) {
+				globalPending.delete(id)
+				reject(new Error('Decompression timeout'))
+			}
+		}, REQUEST_TIMEOUT_MS)
+
+		globalPending.set(id, { resolve, reject, timeoutId })
 		worker.postMessage({ type: 'decompress', id, data } satisfies CompressionRequest)
 	})
 }
