@@ -78,12 +78,19 @@ export function SimulationPage() {
 			if (!step) return
 
 			if (speed === 'instant') {
-				// Run all steps with a brief delay to allow UI to show loading state
+				// Run in chunks of 1000 to allow UI updates
 				setIsCalculating(true)
-				setTimeout(() => {
-					while (stepSimulation()) {}
-					setIsCalculating(false)
-				}, 0)
+				const runChunk = () => {
+					for (let i = 0; i < 1000; i++) {
+						if (!stepSimulation()) {
+							setIsCalculating(false)
+							return
+						}
+					}
+					// Yield to UI, then continue
+					setTimeout(runChunk, 0)
+				}
+				setTimeout(runChunk, 0)
 				return
 			} else if (speed === 'fast') {
 				animationRef.current = requestAnimationFrame(() => {
