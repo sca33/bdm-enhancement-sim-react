@@ -357,11 +357,22 @@ export const useStore = create<AppState>()(
 		}),
 		{
 			name: 'bdm-sim-storage',
+			version: 2, // Increment when schema changes
 			partialize: (state) => ({
 				prices: state.prices,
 				config: state.config,
 				numSimulations: state.numSimulations,
 			}),
+			// Merge persisted state with defaults to handle schema changes
+			merge: (persistedState, currentState) => {
+				const persisted = persistedState as Partial<AppState>
+				return {
+					...currentState,
+					prices: { ...DEFAULT_PRICES, ...persisted.prices },
+					config: { ...DEFAULT_CONFIG, ...persisted.config },
+					numSimulations: persisted.numSimulations ?? currentState.numSimulations,
+				}
+			},
 		}
 	)
 )
