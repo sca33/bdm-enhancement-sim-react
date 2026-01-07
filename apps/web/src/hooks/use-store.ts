@@ -44,6 +44,7 @@ interface AppState {
 	maxLevel: number
 	attempts: number
 	anvilEnergy: Record<number, number>
+	levelSuccesses: Record<number, number>
 	heptaProgress: number
 	oktaProgress: number
 	heptaPity: number
@@ -128,6 +129,7 @@ export const useStore = create<AppState>()(
 			maxLevel: 0,
 			attempts: 0,
 			anvilEnergy: {},
+			levelSuccesses: {},
 			heptaProgress: 0,
 			oktaProgress: 0,
 			heptaPity: 0,
@@ -160,6 +162,7 @@ export const useStore = create<AppState>()(
 					maxLevel: state.config.startLevel,
 					attempts: 0,
 					anvilEnergy: {},
+					levelSuccesses: {},
 					heptaProgress: state.config.startHepta,
 					oktaProgress: state.config.startOkta,
 					heptaPity: 0,
@@ -198,11 +201,21 @@ export const useStore = create<AppState>()(
 				const level = engine.getLevel()
 				const stats = engine.getStats()
 
+				// Track successful enhancements per level (not Hepta/Okta)
+				let newLevelSuccesses = state.levelSuccesses
+				if (step.success && !step.isHeptaOkta) {
+					newLevelSuccesses = {
+						...state.levelSuccesses,
+						[step.endingLevel]: (state.levelSuccesses[step.endingLevel] ?? 0) + 1,
+					}
+				}
+
 				set({
 					currentLevel: level,
 					maxLevel: Math.max(state.maxLevel, level),
 					attempts: stats.attempts,
 					anvilEnergy: engine.getAnvilEnergy(),
+					levelSuccesses: newLevelSuccesses,
 					heptaProgress: engine.getHeptaProgress(),
 					oktaProgress: engine.getOktaProgress(),
 					heptaPity: engine.getHeptaPity(),

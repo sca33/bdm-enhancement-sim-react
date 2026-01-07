@@ -23,6 +23,7 @@ export function SimulationPage() {
 		maxLevel,
 		attempts,
 		anvilEnergy,
+		levelSuccesses,
 		heptaProgress,
 		oktaProgress,
 		heptaPity,
@@ -138,28 +139,35 @@ export function SimulationPage() {
 
 			{/* Stats */}
 			<div className="grid grid-cols-2 gap-3">
-				{/* Anvil Pity */}
+				{/* Anvil Pity & Successes */}
 				<Card>
-					<CardHeader className="py-2 px-3">
-						<CardTitle className="text-xs">Anvil Pity (V-X)</CardTitle>
-					</CardHeader>
-					<CardContent className="px-3 pb-2 text-xs space-y-0.5">
+					<CardContent className="px-3 py-2 text-xs">
+						{/* Column Headers */}
+						<div className="grid grid-cols-3 gap-1 mb-1 text-muted-foreground font-medium">
+							<span></span>
+							<span className="text-right">Pity</span>
+							<span className="text-right">OK</span>
+						</div>
+						{/* Level rows */}
 						{[5, 6, 7, 8, 9, 10].map((level) => (
-							<div key={level} className="flex justify-between">
-								<span>{ROMAN_NUMERALS[level]}:</span>
-								<span>{anvilEnergy[level] ?? 0}/{ANVIL_THRESHOLDS[level]}</span>
+							<div key={level} className="grid grid-cols-3 gap-1">
+								<span className="font-medium">{ROMAN_NUMERALS[level]}</span>
+								<span className="text-right">{anvilEnergy[level] ?? 0}/{ANVIL_THRESHOLDS[level]}</span>
+								<span className="text-right text-success">{levelSuccesses[level] ?? 0}</span>
 							</div>
 						))}
 						{config.useHepta && (
-							<div className="flex justify-between border-t pt-1 mt-1">
-								<span>Hepta:</span>
-								<span>{heptaProgress}/{HEPTA_SUB_ENHANCEMENTS} ({heptaPity}/{HEPTA_OKTA_ANVIL_PITY})</span>
+							<div className="grid grid-cols-3 gap-1 border-t pt-1 mt-1">
+								<span className="font-medium">Hepta</span>
+								<span className="text-right">{heptaPity}/{HEPTA_OKTA_ANVIL_PITY}</span>
+								<span className="text-right text-accent">{heptaProgress}/{HEPTA_SUB_ENHANCEMENTS}</span>
 							</div>
 						)}
 						{config.useOkta && (
-							<div className="flex justify-between">
-								<span>Okta:</span>
-								<span>{oktaProgress}/{OKTA_SUB_ENHANCEMENTS} ({oktaPity}/{HEPTA_OKTA_ANVIL_PITY})</span>
+							<div className="grid grid-cols-3 gap-1">
+								<span className="font-medium">Okta</span>
+								<span className="text-right">{oktaPity}/{HEPTA_OKTA_ANVIL_PITY}</span>
+								<span className="text-right text-accent">{oktaProgress}/{OKTA_SUB_ENHANCEMENTS}</span>
 							</div>
 						)}
 					</CardContent>
