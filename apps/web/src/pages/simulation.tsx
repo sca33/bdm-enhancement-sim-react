@@ -4,9 +4,11 @@ import {
 	HEPTA_SUB_ENHANCEMENTS,
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
+	type StepResult,
 } from '@bdm-sim/simulator'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 
 import { SimulationHistory } from '@/components/simulation-history'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
@@ -16,35 +18,50 @@ import { formatNumber, formatSilver, formatTime } from '@/lib/utils'
 type FlashType = 'none' | 'success' | 'fail' | 'complete'
 
 export function SimulationPage() {
-	const {
-		config,
-		setPage,
-		speed,
-		isRunning,
-		isPaused,
-		currentLevel,
-		maxLevel,
-		attempts,
-		anvilEnergy,
-		levelSuccesses,
-		heptaProgress,
-		oktaProgress,
-		heptaPity,
-		oktaPity,
-		stats,
-		stepHistory,
-		startSimulation,
-		pauseSimulation,
-		resumeSimulation,
-		stopSimulation,
-		stepSimulation,
-	} = useStore()
+	// Granular selectors to prevent unnecessary re-renders
+	// Static config/actions - rarely change
+	const config = useStore((s) => s.config)
+	const setPage = useStore((s) => s.setPage)
+	const speed = useStore((s) => s.speed)
+	const startSimulation = useStore((s) => s.startSimulation)
+	const pauseSimulation = useStore((s) => s.pauseSimulation)
+	const resumeSimulation = useStore((s) => s.resumeSimulation)
+	const stopSimulation = useStore((s) => s.stopSimulation)
+	const stepSimulation = useStore((s) => s.stepSimulation)
+
+	// Simulation state - changes frequently during simulation
+	const isRunning = useStore((s) => s.isRunning)
+	const isPaused = useStore((s) => s.isPaused)
+	const currentLevel = useStore((s) => s.currentLevel)
+	const maxLevel = useStore((s) => s.maxLevel)
+	const attempts = useStore((s) => s.attempts)
+	const stats = useStore((s) => s.stats)
+
+	// Stats panel state
+	const anvilEnergy = useStore((s) => s.anvilEnergy)
+	const levelSuccesses = useStore((s) => s.levelSuccesses)
+	const heptaProgress = useStore((s) => s.heptaProgress)
+	const oktaProgress = useStore((s) => s.oktaProgress)
+	const heptaPity = useStore((s) => s.heptaPity)
+	const oktaPity = useStore((s) => s.oktaPity)
+
+	// Get step history from ring buffer - separate selector for performance
+	const getStepHistory = useStore((s) => s.getStepHistory)
+	const stepHistory = getStepHistory()
 
 	const logRef = useRef<HTMLDivElement>(null)
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const isActiveRef = useRef(false)
 	const [flash, setFlash] = useState<FlashType>('none')
 	const [isCalculating, setIsCalculating] = useState(false)
+
+	// Virtual list for log entries - only renders visible items (~30 instead of 20,000+)
+	const virtualizer = useVirtualizer({
+		count: stepHistory.length,
+		getScrollElement: () => logRef.current,
+		estimateSize: () => 20, // Approximate height of each log entry
+		overscan: 5, // Extra items to render above/below viewport
+	})
 
 	// Centralized cleanup - stops loop immediately and clears pending timeouts
 	const cleanup = useCallback(() => {
@@ -56,12 +73,12 @@ export function SimulationPage() {
 		setIsCalculating(false)
 	}, [])
 
-	// Auto-scroll log
+	// Auto-scroll to latest entry using virtualizer
 	useEffect(() => {
-		if (logRef.current) {
-			logRef.current.scrollTop = logRef.current.scrollHeight
+		if (stepHistory.length > 0) {
+			virtualizer.scrollToIndex(stepHistory.length - 1, { align: 'end' })
 		}
-	}, [stepHistory.length])
+	}, [stepHistory.length, virtualizer])
 
 	// Start simulation on mount
 	useEffect(() => {
@@ -197,13 +214,33 @@ export function SimulationPage() {
 			{/* Log */}
 			<Card className="flex-1 overflow-hidden relative">
 				<CardContent className="p-0 h-full">
-					<div ref={logRef} className="h-full overflow-y-auto p-3 text-xs font-mono space-y-0.5">
+					<div ref={logRef} className="h-full overflow-y-auto p-3 text-xs font-mono">
 						{stepHistory.length === 0 && !isCalculating && (
 							<div className="text-muted-foreground">Starting enhancement simulation...</div>
 						)}
-						{stepHistory.map((step, i) => (
-							<LogEntry key={i} step={step} />
-						))}
+						{/* Virtualized list - only renders ~30 visible items instead of 20,000+ */}
+						<div
+							style={{
+								height: `${virtualizer.getTotalSize()}px`,
+								width: '100%',
+								position: 'relative',
+							}}
+						>
+							{virtualizer.getVirtualItems().map((virtualItem) => (
+								<div
+									key={virtualItem.key}
+									style={{
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										width: '100%',
+										transform: `translateY(${virtualItem.start}px)`,
+									}}
+								>
+									<LogEntry step={stepHistory[virtualItem.index]} />
+								</div>
+							))}
+						</div>
 						{!isRunning && !isCalculating && stepHistory.length > 0 && (
 							<div className="mt-4 p-3 bg-success/20 rounded text-success font-semibold text-center">
 								REACHED +{ROMAN_NUMERALS[config.targetLevel]}!
@@ -233,11 +270,13 @@ export function SimulationPage() {
 							<span className="text-right">OK</span>
 						</div>
 						{/* Level rows */}
-						{[5, 6, 7, 8, 9, 10].map((level) => (
+						{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
 							<div key={level} className="grid grid-cols-3 gap-1">
 								<span className="font-medium">{ROMAN_NUMERALS[level]}</span>
 								<span className="text-right">
-									{anvilEnergy[level] ?? 0}/{ANVIL_THRESHOLDS[level]}
+									{ANVIL_THRESHOLDS[level] > 0
+										? `${anvilEnergy[level] ?? 0}/${ANVIL_THRESHOLDS[level]}`
+										: '-'}
 								</span>
 								<span className="text-right text-success">{levelSuccesses[level] ?? 0}</span>
 							</div>
@@ -349,7 +388,7 @@ export function SimulationPage() {
 	)
 }
 
-function LogEntry({ step }: { step: ReturnType<typeof useStore.getState>['stepHistory'][0] }) {
+const LogEntry = memo(function LogEntry({ step }: { step: StepResult }) {
 	if (step.isHeptaOkta) {
 		const maxSubs = step.pathName === 'Okta' ? OKTA_SUB_ENHANCEMENTS : HEPTA_SUB_ENHANCEMENTS
 
@@ -411,4 +450,4 @@ function LogEntry({ step }: { step: ReturnType<typeof useStore.getState>['stepHi
 			)}
 		</div>
 	)
-}
+})

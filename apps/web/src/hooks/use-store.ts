@@ -46,6 +46,7 @@ export interface SavedRun {
 
 const SAVED_RUNS_KEY = 'bdm-sim-saved-runs'
 const MAX_SAVED_RUNS = 50
+const STEP_BUFFER_SIZE = 1000 // Ring buffer size for step history
 
 function loadSavedRuns(): SavedRun[] {
 	try {
@@ -110,7 +111,12 @@ interface AppState {
 		valks50Used: number
 		valks100Used: number
 	}
-	stepHistory: StepResult[]
+	// Ring buffer for step history - O(1) writes instead of O(n) array spread
+	_stepBuffer: StepResult[]
+	_stepBufferIndex: number
+	_stepBufferCount: number
+	// Getter to retrieve steps in correct order
+	getStepHistory: () => StepResult[]
 	simulationResult: SimulationResult | null
 
 	// Simulation actions
@@ -213,7 +219,22 @@ export const useStore = create<AppState>()(
 				valks50Used: 0,
 				valks100Used: 0,
 			},
-			stepHistory: [],
+			// Ring buffer for step history
+			_stepBuffer: [],
+			_stepBufferIndex: 0,
+			_stepBufferCount: 0,
+			// Getter returns steps in correct chronological order
+			getStepHistory: () => {
+				const { _stepBuffer, _stepBufferIndex, _stepBufferCount } = get()
+				if (_stepBufferCount === 0) return []
+				if (_stepBufferCount < STEP_BUFFER_SIZE) {
+					// Buffer not full yet - return items in order
+					return _stepBuffer.slice(0, _stepBufferCount)
+				}
+				// Buffer is full - reconstruct correct order from ring buffer
+				const start = _stepBufferIndex % STEP_BUFFER_SIZE
+				return [..._stepBuffer.slice(start), ..._stepBuffer.slice(0, start)]
+			},
 			simulationResult: null,
 
 			// Simulation actions
@@ -246,7 +267,10 @@ export const useStore = create<AppState>()(
 						valks50Used: 0,
 						valks100Used: 0,
 					},
-					stepHistory: [],
+					// Reset ring buffer
+					_stepBuffer: new Array(STEP_BUFFER_SIZE),
+					_stepBufferIndex: 0,
+					_stepBufferCount: 0,
 					simulationResult: null,
 					_engine: engine,
 				})
@@ -281,6 +305,11 @@ export const useStore = create<AppState>()(
 					}
 				}
 
+				// Ring buffer O(1) write - only mutate one slot
+				const newBuffer = [...state._stepBuffer]
+				const writeIdx = state._stepBufferIndex % STEP_BUFFER_SIZE
+				newBuffer[writeIdx] = step
+
 				set({
 					currentLevel: level,
 					maxLevel: Math.max(state.maxLevel, level),
@@ -300,7 +329,9 @@ export const useStore = create<AppState>()(
 						valks50Used: stats.valks50Used,
 						valks100Used: stats.valks100Used,
 					},
-					stepHistory: [...state.stepHistory, step],
+					_stepBuffer: newBuffer,
+					_stepBufferIndex: state._stepBufferIndex + 1,
+					_stepBufferCount: Math.min(state._stepBufferCount + 1, STEP_BUFFER_SIZE),
 				})
 
 				if (engine.isComplete()) {
@@ -504,7 +535,8 @@ export const useStore = create<AppState>()(
 
 			saveCurrentRun: () => {
 				const state = get()
-				if (state.stepHistory.length === 0) return
+				const stepHistory = state.getStepHistory()
+				if (stepHistory.length === 0) return
 
 				const run: SavedRun = {
 					id: crypto.randomUUID(),
@@ -513,7 +545,7 @@ export const useStore = create<AppState>()(
 					silver: state.stats.silver,
 					attempts: state.attempts,
 					pinned: false,
-					stepsCompressed: LZString.compressToUTF16(JSON.stringify(state.stepHistory)),
+					stepsCompressed: LZString.compressToUTF16(JSON.stringify(stepHistory)),
 					stats: { ...state.stats },
 					levelSuccesses: { ...state.levelSuccesses },
 					anvilEnergy: { ...state.anvilEnergy },
@@ -544,6 +576,13 @@ export const useStore = create<AppState>()(
 						LZString.decompressFromUTF16(run.stepsCompressed) || '[]',
 					) as StepResult[]
 
+					// Load steps into ring buffer (only keep last STEP_BUFFER_SIZE items)
+					const stepsToLoad = steps.slice(-STEP_BUFFER_SIZE)
+					const newBuffer = new Array(STEP_BUFFER_SIZE)
+					for (let i = 0; i < stepsToLoad.length; i++) {
+						newBuffer[i] = stepsToLoad[i]
+					}
+
 					set({
 						isRunning: false,
 						isPaused: false,
@@ -553,7 +592,9 @@ export const useStore = create<AppState>()(
 						anvilEnergy: run.anvilEnergy,
 						levelSuccesses: run.levelSuccesses,
 						stats: run.stats,
-						stepHistory: steps,
+						_stepBuffer: newBuffer,
+						_stepBufferIndex: stepsToLoad.length,
+						_stepBufferCount: stepsToLoad.length,
 						simulationResult: null,
 						_engine: null,
 					})
