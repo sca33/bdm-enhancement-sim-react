@@ -251,6 +251,9 @@ export const useStore = create<AppState>()(
 
 					const config: SimulationConfig = {
 						...state.config,
+						startLevel: 0, // Always start from 0 for strategy analysis
+						startHepta: 0, // Reset sub-enhancement progress
+						startOkta: 0,
 						restorationFrom: restFrom,
 						useHepta: false,
 						useOkta: false,
@@ -311,6 +314,9 @@ export const useStore = create<AppState>()(
 
 					const config: SimulationConfig = {
 						...state.config,
+						startLevel: 0, // Always start from 0 for strategy analysis
+						startHepta: 0, // Reset sub-enhancement progress
+						startOkta: 0,
 						restorationFrom: 6, // Fixed at +VI
 						useHepta,
 						useOkta,
