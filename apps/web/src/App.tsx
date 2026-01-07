@@ -1,9 +1,9 @@
+import { Settings } from '@/components/settings'
 import { useStore } from '@/hooks/use-store'
 import {
 	AwakeningConfigPage,
 	HeptaOktaStrategyPage,
 	HomePage,
-	MarketPricesPage,
 	RestorationStrategyPage,
 	SimulationPage,
 } from '@/pages'
@@ -15,8 +15,6 @@ export default function App() {
 		switch (currentPage) {
 			case 'home':
 				return <HomePage />
-			case 'market-prices':
-				return <MarketPricesPage />
 			case 'awakening-config':
 				return <AwakeningConfigPage />
 			case 'simulation':
@@ -37,10 +35,11 @@ export default function App() {
 		<div className={`min-h-screen bg-background flex flex-col ${isSimulation ? 'h-screen' : ''}`}>
 			{/* Header */}
 			<header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shrink-0">
-				<div className="container mx-auto px-4 py-3">
+				<div className="container mx-auto px-4 py-3 flex items-center justify-between">
 					<h1 className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
 						BDM Enhancement Simulator
 					</h1>
+					<Settings />
 				</div>
 			</header>
 

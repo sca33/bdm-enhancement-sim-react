@@ -1,7 +1,6 @@
 import { MODULES } from '@bdm-sim/simulator'
-import { Settings } from 'lucide-react'
 
-import { Button, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 
 export function HomePage() {
@@ -37,17 +36,6 @@ export function HomePage() {
 						</CardHeader>
 					</Card>
 				))}
-			</div>
-
-			<div className="border-t pt-4">
-				<Button
-					variant="outline"
-					className="w-full"
-					onClick={() => setPage('market-prices')}
-				>
-					<Settings className="w-4 h-4 mr-2" />
-					Market Prices
-				</Button>
 			</div>
 		</div>
 	)

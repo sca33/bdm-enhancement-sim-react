@@ -11,7 +11,7 @@ import {
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Page = 'home' | 'market-prices' | 'awakening-config' | 'simulation' | 'restoration-strategy' | 'hepta-okta-strategy'
+export type Page = 'home' | 'awakening-config' | 'simulation' | 'restoration-strategy' | 'hepta-okta-strategy'
 
 export type SimulationSpeed = 'instant' | 'fast' | 'regular'
 
