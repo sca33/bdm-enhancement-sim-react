@@ -33,8 +33,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Build (no cache)
+        run: pnpm turbo build --force
+        env:
+          TURBO_FORCE: true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
