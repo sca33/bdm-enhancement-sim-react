@@ -80,12 +80,21 @@ export function HeptaOktaStrategyPage() {
 							<table className="w-full text-xs">
 								<thead>
 									<tr className="border-b bg-muted/50">
-										<th className="px-3 py-2 text-left font-medium">Strategy</th>
-										<th className="px-3 py-2 text-right font-medium">P50 Silver</th>
-										<th className="px-3 py-2 text-right font-medium">Crystals</th>
-										<th className="px-3 py-2 text-right font-medium">Exquisite</th>
-										<th className="px-3 py-2 text-right font-medium">P90 Silver</th>
-										<th className="px-3 py-2 text-right font-medium">Worst</th>
+										<th rowSpan={2} className="px-3 py-2 text-left font-medium">Strategy</th>
+										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">P50</th>
+										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">P90</th>
+										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">Worst</th>
+									</tr>
+									<tr className="border-b bg-muted/50">
+										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
+										<th className="px-3 py-1 text-right font-normal">Crystals</th>
+										<th className="px-3 py-1 text-right font-normal">Exquisite</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Exquisite</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Exquisite</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -102,14 +111,26 @@ export function HeptaOktaStrategyPage() {
 														<span className="ml-2 text-success text-[10px]">BEST</span>
 													)}
 												</td>
-												<td className="px-3 py-2 text-right">{formatSilver(result.p50.silver)}</td>
+												<td className="px-3 py-2 text-right border-l">{formatSilver(result.p50.silver)}</td>
 												<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
 												<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
-												<td className="px-3 py-2 text-right text-muted-foreground">
+												<td className="px-3 py-2 text-right border-l text-muted-foreground">
 													{formatSilver(result.p90.silver)}
 												</td>
 												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.p90.crystals)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.p90.exquisite)}
+												</td>
+												<td className="px-3 py-2 text-right border-l text-muted-foreground">
 													{formatSilver(result.worst.silver)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.worst.crystals)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.worst.exquisite)}
 												</td>
 											</tr>
 										))}
