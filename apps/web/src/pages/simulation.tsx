@@ -5,12 +5,14 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
-import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { formatNumber, formatSilver, formatTime } from '@/lib/utils'
+
+type FlashType = 'none' | 'success' | 'fail' | 'complete'
 
 export function SimulationPage() {
 	const {
@@ -39,6 +41,8 @@ export function SimulationPage() {
 
 	const logRef = useRef<HTMLDivElement>(null)
 	const animationRef = useRef<number | null>(null)
+	const [flash, setFlash] = useState<FlashType>('none')
+	const [isCalculating, setIsCalculating] = useState(false)
 
 	// Auto-scroll log
 	useEffect(() => {
@@ -58,6 +62,13 @@ export function SimulationPage() {
 		}
 	}, [])
 
+	// Trigger flash animation (only in regular speed mode)
+	const triggerFlash = (type: FlashType, duration: number) => {
+		if (speed !== 'regular') return
+		setFlash(type)
+		setTimeout(() => setFlash('none'), duration)
+	}
+
 	// Run simulation loop
 	useEffect(() => {
 		if (!isRunning || isPaused) return
@@ -67,14 +78,28 @@ export function SimulationPage() {
 			if (!step) return
 
 			if (speed === 'instant') {
-				// Run all remaining steps immediately
-				while (stepSimulation()) {}
+				// Run all steps with a brief delay to allow UI to show loading state
+				setIsCalculating(true)
+				setTimeout(() => {
+					while (stepSimulation()) {}
+					setIsCalculating(false)
+				}, 0)
+				return
 			} else if (speed === 'fast') {
 				animationRef.current = requestAnimationFrame(() => {
 					setTimeout(runStep, 1)
 				})
 			} else {
-				// Regular speed - 1 second per step
+				// Regular speed - 1 second per step with flash animations
+				const isComplete = step.endingLevel >= config.targetLevel && step.success
+				if (isComplete) {
+					triggerFlash('complete', 1000)
+				} else if (step.success) {
+					triggerFlash('success', 100)
+				} else {
+					triggerFlash('fail', 100)
+				}
+
 				animationRef.current = requestAnimationFrame(() => {
 					setTimeout(runStep, 1000)
 				})
@@ -94,11 +119,26 @@ export function SimulationPage() {
 		if (animationRef.current) {
 			cancelAnimationFrame(animationRef.current)
 		}
+		setFlash('none')
+		if (speed === 'instant') {
+			setIsCalculating(true)
+		}
 		startSimulation()
+	}
+
+	// Flash overlay styles
+	const flashStyles: Record<FlashType, string> = {
+		none: '',
+		success: 'fixed inset-0 z-[100] pointer-events-none bg-success/40 animate-flash-short',
+		fail: 'fixed inset-0 z-[100] pointer-events-none bg-black/50 animate-flash-short',
+		complete: 'fixed inset-0 z-[100] pointer-events-none bg-gradient-to-r from-success/60 via-accent/60 to-success/60 animate-flash-long',
 	}
 
 	return (
 		<div className="h-full flex flex-col gap-3">
+			{/* Flash overlay */}
+			{flash !== 'none' && <div className={flashStyles[flash]} />}
+
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
@@ -119,22 +159,30 @@ export function SimulationPage() {
 			</div>
 
 			{/* Log */}
-			<Card className="flex-1 overflow-hidden">
+			<Card className="flex-1 overflow-hidden relative">
 				<CardContent className="p-0 h-full">
 					<div ref={logRef} className="h-full overflow-y-auto p-3 text-xs font-mono space-y-0.5">
-						{stepHistory.length === 0 && (
+						{stepHistory.length === 0 && !isCalculating && (
 							<div className="text-muted-foreground">Starting enhancement simulation...</div>
 						)}
 						{stepHistory.map((step, i) => (
 							<LogEntry key={i} step={step} />
 						))}
-						{!isRunning && stepHistory.length > 0 && (
+						{!isRunning && !isCalculating && stepHistory.length > 0 && (
 							<div className="mt-4 p-3 bg-success/20 rounded text-success font-semibold text-center">
 								REACHED +{ROMAN_NUMERALS[config.targetLevel]}!
 							</div>
 						)}
 					</div>
 				</CardContent>
+				{isCalculating && (
+					<div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+						<div className="flex items-center gap-2">
+							<Loader2 className="w-6 h-6 animate-spin" />
+							<span className="text-sm">Calculating...</span>
+						</div>
+					</div>
+				)}
 			</Card>
 
 			{/* Stats */}
@@ -228,9 +276,13 @@ export function SimulationPage() {
 				>
 					{isPaused ? <><Play className="w-4 h-4 mr-1" /> Resume</> : <><Pause className="w-4 h-4 mr-1" /> Pause</>}
 				</Button>
-				<Button variant="outline" onClick={handleRestart}>
-					<RotateCcw className="w-4 h-4 mr-1" />
-					Restart
+				<Button variant="outline" onClick={handleRestart} disabled={isCalculating}>
+					{isCalculating ? (
+						<Loader2 className="w-4 h-4 mr-1 animate-spin" />
+					) : (
+						<RotateCcw className="w-4 h-4 mr-1" />
+					)}
+					{isCalculating ? 'Calculating...' : 'Restart'}
 				</Button>
 			</div>
 		</div>
