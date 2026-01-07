@@ -1,5 +1,5 @@
 import { ROMAN_NUMERALS } from '@bdm-sim/simulator'
-import { History, Trash2 } from 'lucide-react'
+import { History, Pin, PinOff, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -32,20 +32,23 @@ function RunItem({
 	run,
 	onLoad,
 	onDelete,
+	onTogglePin,
 }: {
 	run: SavedRun
 	onLoad: () => void
 	onDelete: () => void
+	onTogglePin: () => void
 }) {
 	return (
-		<div className="flex items-center gap-2 p-2 rounded border bg-muted/30 hover:bg-muted/50 transition-colors">
+		<div className={`flex items-center gap-2 p-2 rounded border transition-colors ${run.pinned ? 'bg-accent/20 border-accent/50' : 'bg-muted/30 hover:bg-muted/50'}`}>
 			<button
 				type="button"
 				onClick={onLoad}
 				className="flex-1 text-left"
 			>
 				<div className="flex items-center justify-between">
-					<span className="text-xs font-medium">
+					<span className="text-xs font-medium flex items-center gap-1">
+						{run.pinned && <Pin className="w-3 h-3 text-accent" />}
 						+{ROMAN_NUMERALS[run.targetLevel]}
 					</span>
 					<span className="text-xs text-muted-foreground">
@@ -59,11 +62,24 @@ function RunItem({
 			<Button
 				variant="ghost"
 				size="icon"
+				className={`h-7 w-7 shrink-0 ${run.pinned ? 'text-accent hover:text-accent/80' : 'text-muted-foreground hover:text-accent'}`}
+				onClick={(e) => {
+					e.stopPropagation()
+					onTogglePin()
+				}}
+				title={run.pinned ? 'Unpin' : 'Pin'}
+			>
+				{run.pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
 				className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
 				onClick={(e) => {
 					e.stopPropagation()
 					onDelete()
 				}}
+				title="Delete"
 			>
 				<Trash2 className="w-3.5 h-3.5" />
 			</Button>
@@ -72,7 +88,7 @@ function RunItem({
 }
 
 export function SimulationHistory() {
-	const { savedRuns, loadRun, deleteRun, clearAllRuns, saveCurrentRun, stepHistory, isRunning } = useStore()
+	const { savedRuns, loadRun, deleteRun, togglePinRun, clearAllRuns } = useStore()
 	const [open, setOpen] = useState(false)
 
 	const handleLoad = (id: string) => {
@@ -80,7 +96,7 @@ export function SimulationHistory() {
 		setOpen(false)
 	}
 
-	const canSave = stepHistory.length > 0 && !isRunning
+	const pinnedCount = savedRuns.filter((r) => r.pinned).length
 
 	return (
 		<Sheet open={open} onOpenChange={setOpen}>
@@ -94,19 +110,14 @@ export function SimulationHistory() {
 					<SheetTitle>Simulation History</SheetTitle>
 					<SheetDescription>
 						{savedRuns.length} saved run{savedRuns.length !== 1 ? 's' : ''}
+						{pinnedCount > 0 && ` (${pinnedCount} pinned)`}
 					</SheetDescription>
 				</SheetHeader>
 
 				<div className="mt-4 space-y-4">
-					{/* Save current button */}
-					<Button
-						variant="outline"
-						className="w-full"
-						onClick={saveCurrentRun}
-						disabled={!canSave}
-					>
-						Save Current Run
-					</Button>
+					<p className="text-xs text-muted-foreground">
+						Runs are auto-saved when completed. Pin runs to protect them from auto-deletion.
+					</p>
 
 					{/* Runs list */}
 					{savedRuns.length > 0 ? (
@@ -117,12 +128,13 @@ export function SimulationHistory() {
 									run={run}
 									onLoad={() => handleLoad(run.id)}
 									onDelete={() => deleteRun(run.id)}
+									onTogglePin={() => togglePinRun(run.id)}
 								/>
 							))}
 						</div>
 					) : (
 						<div className="text-center py-8 text-sm text-muted-foreground">
-							No saved runs yet
+							No saved runs yet. Complete a simulation to save it.
 						</div>
 					)}
 

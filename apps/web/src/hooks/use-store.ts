@@ -23,6 +23,7 @@ export interface SavedRun {
 	targetLevel: number
 	silver: number
 	attempts: number
+	pinned: boolean
 	// Compressed step history
 	stepsCompressed: string
 	stats: {
@@ -142,6 +143,7 @@ interface AppState {
 	saveCurrentRun: () => void
 	loadRun: (id: string) => void
 	deleteRun: (id: string) => void
+	togglePinRun: (id: string) => void
 	clearAllRuns: () => void
 }
 
@@ -162,9 +164,19 @@ export const useStore = create<AppState>()(
 			// Simulation config
 			config: { ...DEFAULT_CONFIG },
 			setConfig: (partial) =>
-				set((state) => ({
-					config: { ...state.config, ...partial },
-				})),
+				set((state) => {
+					const newConfig = { ...state.config, ...partial }
+					// Reset startHepta/startOkta when startLevel changes
+					if ('startLevel' in partial) {
+						if (newConfig.startLevel !== 7) {
+							newConfig.startHepta = 0
+						}
+						if (newConfig.startLevel !== 8) {
+							newConfig.startOkta = 0
+						}
+					}
+					return { config: newConfig }
+				}),
 			resetConfig: () => set({ config: { ...DEFAULT_CONFIG } }),
 
 			// Speed
@@ -288,6 +300,8 @@ export const useStore = create<AppState>()(
 
 				if (engine.isComplete()) {
 					set({ isRunning: false })
+					// Auto-save completed run
+					get().saveCurrentRun()
 				}
 
 				return step
@@ -435,13 +449,24 @@ export const useStore = create<AppState>()(
 					targetLevel: state.config.targetLevel,
 					silver: state.stats.silver,
 					attempts: state.attempts,
+					pinned: false,
 					stepsCompressed: LZString.compressToUTF16(JSON.stringify(state.stepHistory)),
 					stats: { ...state.stats },
 					levelSuccesses: { ...state.levelSuccesses },
 					anvilEnergy: { ...state.anvilEnergy },
 				}
 
-				const newRuns = [run, ...state.savedRuns].slice(0, MAX_SAVED_RUNS)
+				// Add new run and handle overflow - keep pinned runs, remove oldest unpinned
+				let newRuns = [run, ...state.savedRuns]
+				if (newRuns.length > MAX_SAVED_RUNS) {
+					const pinned = newRuns.filter((r) => r.pinned)
+					const unpinned = newRuns.filter((r) => !r.pinned)
+					// Keep all pinned + as many unpinned as fit
+					const unpinnedToKeep = MAX_SAVED_RUNS - pinned.length
+					newRuns = [...pinned, ...unpinned.slice(0, Math.max(0, unpinnedToKeep))]
+					// Sort by timestamp descending (newest first)
+					newRuns.sort((a, b) => b.timestamp - a.timestamp)
+				}
 				persistSavedRuns(newRuns)
 				set({ savedRuns: newRuns })
 			},
@@ -477,6 +502,15 @@ export const useStore = create<AppState>()(
 			deleteRun: (id: string) => {
 				const state = get()
 				const newRuns = state.savedRuns.filter((r) => r.id !== id)
+				persistSavedRuns(newRuns)
+				set({ savedRuns: newRuns })
+			},
+
+			togglePinRun: (id: string) => {
+				const state = get()
+				const newRuns = state.savedRuns.map((r) =>
+					r.id === id ? { ...r, pinned: !r.pinned } : r
+				)
 				persistSavedRuns(newRuns)
 				set({ savedRuns: newRuns })
 			},
