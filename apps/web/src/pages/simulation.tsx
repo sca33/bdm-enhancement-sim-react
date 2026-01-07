@@ -6,7 +6,7 @@ import {
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
 import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SimulationHistory } from '@/components/simulation-history'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
@@ -41,10 +41,20 @@ export function SimulationPage() {
 	} = useStore()
 
 	const logRef = useRef<HTMLDivElement>(null)
-	const animationRef = useRef<number | null>(null)
 	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const isActiveRef = useRef(false)
 	const [flash, setFlash] = useState<FlashType>('none')
 	const [isCalculating, setIsCalculating] = useState(false)
+
+	// Centralized cleanup - stops loop immediately and clears pending timeouts
+	const cleanup = useCallback(() => {
+		isActiveRef.current = false
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+			timeoutRef.current = null
+		}
+		setIsCalculating(false)
+	}, [])
 
 	// Auto-scroll log
 	useEffect(() => {
@@ -57,12 +67,10 @@ export function SimulationPage() {
 	useEffect(() => {
 		startSimulation()
 		return () => {
-			if (animationRef.current) {
-				cancelAnimationFrame(animationRef.current)
-			}
+			cleanup()
 			stopSimulation()
 		}
-	}, [])
+	}, [cleanup])
 
 	// Trigger flash animation (only in regular speed mode)
 	const triggerFlash = (type: FlashType, duration: number) => {
@@ -73,61 +81,49 @@ export function SimulationPage() {
 
 	// Run simulation loop
 	useEffect(() => {
-		// Clear any pending timeouts/animations when paused or stopped
-		const cleanup = () => {
-			if (animationRef.current) {
-				cancelAnimationFrame(animationRef.current)
-				animationRef.current = null
-			}
-			if (timeoutRef.current) {
-				clearTimeout(timeoutRef.current)
-				timeoutRef.current = null
-			}
-		}
-
+		// Stop if not running or paused
 		if (!isRunning || isPaused) {
 			cleanup()
-			if (isPaused && speed === 'instant') {
-				setIsCalculating(false)
-			}
-			return cleanup
+			return
+		}
+
+		// Activate loop
+		isActiveRef.current = true
+		if (speed === 'instant') {
+			setIsCalculating(true)
 		}
 
 		const runStep = () => {
-			// Check state before each step
-			const state = useStore.getState()
-			if (!state.isRunning || state.isPaused) {
-				setIsCalculating(false)
+			// Check flag before each step
+			if (!isActiveRef.current) return
+
+			const step = stepSimulation()
+			if (!step) {
+				cleanup()
 				return
 			}
 
-			const step = stepSimulation()
-			if (!step) return
-
 			if (speed === 'instant') {
 				// Run in chunks of 1000 to allow UI updates
-				setIsCalculating(true)
 				const runChunk = () => {
-					// Check if paused or stopped before continuing
-					const currentState = useStore.getState()
-					if (!currentState.isRunning || currentState.isPaused) {
-						setIsCalculating(false)
-						return
-					}
-
 					for (let i = 0; i < 1000; i++) {
+						// Check flag EVERY iteration for immediate pause
+						if (!isActiveRef.current) return
 						if (!stepSimulation()) {
-							setIsCalculating(false)
+							cleanup()
 							return
 						}
 					}
-					// Yield to UI, then continue
-					timeoutRef.current = setTimeout(runChunk, 0)
+					// Only schedule next chunk if still active
+					if (isActiveRef.current) {
+						timeoutRef.current = setTimeout(runChunk, 0)
+					}
 				}
 				timeoutRef.current = setTimeout(runChunk, 0)
-				return
 			} else if (speed === 'fast') {
-				timeoutRef.current = setTimeout(runStep, 1)
+				if (isActiveRef.current) {
+					timeoutRef.current = setTimeout(runStep, 1)
+				}
 			} else {
 				// Regular speed - random 0.5-1.0 second per step with flash animations
 				const isComplete = step.endingLevel >= config.targetLevel && step.success
@@ -139,29 +135,21 @@ export function SimulationPage() {
 					triggerFlash('fail', 100)
 				}
 
-				const delay = 500 + Math.random() * 500
-				timeoutRef.current = setTimeout(runStep, delay)
+				if (isActiveRef.current) {
+					const delay = 500 + Math.random() * 500
+					timeoutRef.current = setTimeout(runStep, delay)
+				}
 			}
 		}
 
 		runStep()
 
 		return cleanup
-	}, [isRunning, isPaused, speed])
+	}, [isRunning, isPaused, speed, cleanup])
 
 	const handleRestart = () => {
-		if (animationRef.current) {
-			cancelAnimationFrame(animationRef.current)
-			animationRef.current = null
-		}
-		if (timeoutRef.current) {
-			clearTimeout(timeoutRef.current)
-			timeoutRef.current = null
-		}
+		cleanup()
 		setFlash('none')
-		if (speed === 'instant') {
-			setIsCalculating(true)
-		}
 		startSimulation()
 	}
 
