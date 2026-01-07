@@ -201,9 +201,10 @@ export const useStore = create<AppState>()(
 				const level = engine.getLevel()
 				const stats = engine.getStats()
 
-				// Track successful enhancements per level (not Hepta/Okta)
+				// Track successful enhancements per level
+				// Count normal successes and Hepta/Okta path completions (VII→VIII or VIII→IX)
 				let newLevelSuccesses = state.levelSuccesses
-				if (step.success && !step.isHeptaOkta) {
+				if (step.success && (!step.isHeptaOkta || step.pathComplete)) {
 					newLevelSuccesses = {
 						...state.levelSuccesses,
 						[step.endingLevel]: (state.levelSuccesses[step.endingLevel] ?? 0) + 1,
