@@ -42,6 +42,7 @@ export function SimulationPage() {
 
 	const logRef = useRef<HTMLDivElement>(null)
 	const animationRef = useRef<number | null>(null)
+	const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const [flash, setFlash] = useState<FlashType>('none')
 	const [isCalculating, setIsCalculating] = useState(false)
 
@@ -72,9 +73,34 @@ export function SimulationPage() {
 
 	// Run simulation loop
 	useEffect(() => {
-		if (!isRunning || isPaused) return
+		// Clear any pending timeouts/animations when paused or stopped
+		const cleanup = () => {
+			if (animationRef.current) {
+				cancelAnimationFrame(animationRef.current)
+				animationRef.current = null
+			}
+			if (timeoutRef.current) {
+				clearTimeout(timeoutRef.current)
+				timeoutRef.current = null
+			}
+		}
+
+		if (!isRunning || isPaused) {
+			cleanup()
+			if (isPaused && speed === 'instant') {
+				setIsCalculating(false)
+			}
+			return cleanup
+		}
 
 		const runStep = () => {
+			// Check state before each step
+			const state = useStore.getState()
+			if (!state.isRunning || state.isPaused) {
+				setIsCalculating(false)
+				return
+			}
+
 			const step = stepSimulation()
 			if (!step) return
 
@@ -82,6 +108,13 @@ export function SimulationPage() {
 				// Run in chunks of 1000 to allow UI updates
 				setIsCalculating(true)
 				const runChunk = () => {
+					// Check if paused or stopped before continuing
+					const currentState = useStore.getState()
+					if (!currentState.isRunning || currentState.isPaused) {
+						setIsCalculating(false)
+						return
+					}
+
 					for (let i = 0; i < 1000; i++) {
 						if (!stepSimulation()) {
 							setIsCalculating(false)
@@ -89,14 +122,12 @@ export function SimulationPage() {
 						}
 					}
 					// Yield to UI, then continue
-					setTimeout(runChunk, 0)
+					timeoutRef.current = setTimeout(runChunk, 0)
 				}
-				setTimeout(runChunk, 0)
+				timeoutRef.current = setTimeout(runChunk, 0)
 				return
 			} else if (speed === 'fast') {
-				animationRef.current = requestAnimationFrame(() => {
-					setTimeout(runStep, 1)
-				})
+				timeoutRef.current = setTimeout(runStep, 1)
 			} else {
 				// Regular speed - random 0.5-1.0 second per step with flash animations
 				const isComplete = step.endingLevel >= config.targetLevel && step.success
@@ -109,24 +140,23 @@ export function SimulationPage() {
 				}
 
 				const delay = 500 + Math.random() * 500
-				animationRef.current = requestAnimationFrame(() => {
-					setTimeout(runStep, delay)
-				})
+				timeoutRef.current = setTimeout(runStep, delay)
 			}
 		}
 
 		runStep()
 
-		return () => {
-			if (animationRef.current) {
-				cancelAnimationFrame(animationRef.current)
-			}
-		}
+		return cleanup
 	}, [isRunning, isPaused, speed])
 
 	const handleRestart = () => {
 		if (animationRef.current) {
 			cancelAnimationFrame(animationRef.current)
+			animationRef.current = null
+		}
+		if (timeoutRef.current) {
+			clearTimeout(timeoutRef.current)
+			timeoutRef.current = null
 		}
 		setFlash('none')
 		if (speed === 'instant') {
