@@ -39,7 +39,8 @@ export function HeptaOktaStrategyPage() {
 				<div>
 					<h2 className="text-xl font-semibold">Hepta/Okta Strategy Analysis</h2>
 					<p className="text-xs text-muted-foreground">
-						Target: +{ROMAN_NUMERALS[config.targetLevel]} | {numSimulations.toLocaleString()} simulations per strategy
+						Target: +{ROMAN_NUMERALS[config.targetLevel]} | {numSimulations.toLocaleString()}{' '}
+						simulations per strategy
 					</p>
 				</div>
 			</div>
@@ -58,9 +59,7 @@ export function HeptaOktaStrategyPage() {
 									/>
 								</div>
 							</div>
-							<span className="text-sm text-muted-foreground">
-								{strategyProgress.toFixed(0)}%
-							</span>
+							<span className="text-sm text-muted-foreground">{strategyProgress.toFixed(0)}%</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -80,21 +79,47 @@ export function HeptaOktaStrategyPage() {
 							<table className="w-full text-xs">
 								<thead>
 									<tr className="border-b bg-muted/50">
-										<th rowSpan={2} className="px-3 py-2 text-left font-medium">Strategy</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">P50</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">P90</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">Worst</th>
+										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
+											Strategy
+										</th>
+										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
+											P50
+										</th>
+										<th
+											colSpan={3}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											P90
+										</th>
+										<th
+											colSpan={3}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											Worst
+										</th>
 									</tr>
 									<tr className="border-b bg-muted/50">
 										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
 										<th className="px-3 py-1 text-right font-normal">Crystals</th>
 										<th className="px-3 py-1 text-right font-normal">Exquisite</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Exquisite</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Exquisite</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Exquisite
+										</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Exquisite
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -107,13 +132,17 @@ export function HeptaOktaStrategyPage() {
 											>
 												<td className="px-3 py-2 font-medium">
 													{result.label}
-													{idx === 0 && (
-														<span className="ml-2 text-success text-[10px]">BEST</span>
-													)}
+													{idx === 0 && <span className="ml-2 text-success text-[10px]">BEST</span>}
 												</td>
-												<td className="px-3 py-2 text-right border-l">{formatSilver(result.p50.silver)}</td>
-												<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-												<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
+												<td className="px-3 py-2 text-right border-l">
+													{formatSilver(result.p50.silver)}
+												</td>
+												<td className="px-3 py-2 text-right">
+													{formatNumber(result.p50.crystals)}
+												</td>
+												<td className="px-3 py-2 text-right">
+													{formatNumber(result.p50.exquisite)}
+												</td>
 												<td className="px-3 py-2 text-right border-l text-muted-foreground">
 													{formatSilver(result.p90.silver)}
 												</td>
@@ -148,16 +177,18 @@ export function HeptaOktaStrategyPage() {
 				</CardHeader>
 				<CardContent className="text-xs text-muted-foreground space-y-2">
 					<p>
-						<strong>Hepta</strong> (VII→VIII): Complete {HEPTA_SUB_ENHANCEMENTS} sub-enhancements using Exquisite Black Crystals
-						to guarantee level up. Uses anvil pity system for sub-enhancements.
+						<strong>Hepta</strong> (VII→VIII): Complete {HEPTA_SUB_ENHANCEMENTS} sub-enhancements
+						using Exquisite Black Crystals to guarantee level up. Uses anvil pity system for
+						sub-enhancements.
 					</p>
 					<p>
-						<strong>Okta</strong> (VIII→IX): Complete {OKTA_SUB_ENHANCEMENTS} sub-enhancements using Exquisite Black Crystals
-						to guarantee level up. Uses anvil pity system for sub-enhancements.
+						<strong>Okta</strong> (VIII→IX): Complete {OKTA_SUB_ENHANCEMENTS} sub-enhancements using
+						Exquisite Black Crystals to guarantee level up. Uses anvil pity system for
+						sub-enhancements.
 					</p>
 					<p>
-						<strong>Exquisite Black Crystal</strong>: Crafted from 1,050 Restoration Scrolls +
-						30 Pristine Black Crystals + 2 Valks +100%.
+						<strong>Exquisite Black Crystal</strong>: Crafted from 1,050 Restoration Scrolls + 30
+						Pristine Black Crystals + 2 Valks +100%.
 					</p>
 					<p className="mt-2">
 						These paths trade higher material cost for guaranteed progression at difficult levels.

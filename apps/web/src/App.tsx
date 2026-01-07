@@ -44,7 +44,9 @@ export default function App() {
 			</header>
 
 			{/* Main Content */}
-			<main className={`container mx-auto px-4 py-4 ${isSimulation ? 'flex-1 overflow-hidden' : ''}`}>
+			<main
+				className={`container mx-auto px-4 py-4 ${isSimulation ? 'flex-1 overflow-hidden' : ''}`}
+			>
 				{renderPage()}
 			</main>
 

@@ -11,7 +11,7 @@ import {
 	SheetTitle,
 	SheetTrigger,
 } from '@/components/ui'
-import { useStore, type SavedRun } from '@/hooks/use-store'
+import { type SavedRun, useStore } from '@/hooks/use-store'
 import { formatSilver } from '@/lib/utils'
 
 function formatTimestamp(ts: number): string {
@@ -23,9 +23,11 @@ function formatTimestamp(ts: number): string {
 		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 	}
 
-	return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+	return (
+		date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
 		' ' +
 		date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+	)
 }
 
 function RunItem({
@@ -40,20 +42,16 @@ function RunItem({
 	onTogglePin: () => void
 }) {
 	return (
-		<div className={`flex items-center gap-2 p-2 rounded border transition-colors ${run.pinned ? 'bg-accent/20 border-accent/50' : 'bg-muted/30 hover:bg-muted/50'}`}>
-			<button
-				type="button"
-				onClick={onLoad}
-				className="flex-1 text-left"
-			>
+		<div
+			className={`flex items-center gap-2 p-2 rounded border transition-colors ${run.pinned ? 'bg-accent/20 border-accent/50' : 'bg-muted/30 hover:bg-muted/50'}`}
+		>
+			<button type="button" onClick={onLoad} className="flex-1 text-left">
 				<div className="flex items-center justify-between">
 					<span className="text-xs font-medium flex items-center gap-1">
-						{run.pinned && <Pin className="w-3 h-3 text-accent" />}
-						+{ROMAN_NUMERALS[run.targetLevel]}
+						{run.pinned && <Pin className="w-3 h-3 text-accent" />}+
+						{ROMAN_NUMERALS[run.targetLevel]}
 					</span>
-					<span className="text-xs text-muted-foreground">
-						{formatTimestamp(run.timestamp)}
-					</span>
+					<span className="text-xs text-muted-foreground">{formatTimestamp(run.timestamp)}</span>
 				</div>
 				<div className="text-xs text-muted-foreground mt-0.5">
 					{formatSilver(run.silver)} • {run.attempts.toLocaleString()} attempts
@@ -140,11 +138,7 @@ export function SimulationHistory() {
 
 					{/* Clear all */}
 					{savedRuns.length > 0 && (
-						<Button
-							variant="destructive"
-							className="w-full"
-							onClick={clearAllRuns}
-						>
+						<Button variant="destructive" className="w-full" onClick={clearAllRuns}>
 							<Trash2 className="w-4 h-4 mr-2" />
 							Clear All Runs
 						</Button>

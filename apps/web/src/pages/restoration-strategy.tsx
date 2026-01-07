@@ -39,7 +39,8 @@ export function RestorationStrategyPage() {
 				<div>
 					<h2 className="text-xl font-semibold">Restoration Strategy Analysis</h2>
 					<p className="text-xs text-muted-foreground">
-						Target: +{ROMAN_NUMERALS[config.targetLevel]} | {numSimulations.toLocaleString()} simulations per strategy
+						Target: +{ROMAN_NUMERALS[config.targetLevel]} | {numSimulations.toLocaleString()}{' '}
+						simulations per strategy
 					</p>
 				</div>
 			</div>
@@ -58,9 +59,7 @@ export function RestorationStrategyPage() {
 									/>
 								</div>
 							</div>
-							<span className="text-sm text-muted-foreground">
-								{strategyProgress.toFixed(0)}%
-							</span>
+							<span className="text-sm text-muted-foreground">{strategyProgress.toFixed(0)}%</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -71,30 +70,54 @@ export function RestorationStrategyPage() {
 				<Card>
 					<CardHeader className="py-3">
 						<CardTitle className="text-sm">Results by Restoration Starting Level</CardTitle>
-						<p className="text-xs text-muted-foreground">
-							Sorted by median (P50) silver cost
-						</p>
+						<p className="text-xs text-muted-foreground">Sorted by median (P50) silver cost</p>
 					</CardHeader>
 					<CardContent className="p-0">
 						<div className="overflow-x-auto">
 							<table className="w-full text-xs">
 								<thead>
 									<tr className="border-b bg-muted/50">
-										<th rowSpan={2} className="px-3 py-2 text-left font-medium">From</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">P50</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">P90</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l text-muted-foreground">Worst</th>
+										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
+											From
+										</th>
+										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
+											P50
+										</th>
+										<th
+											colSpan={3}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											P90
+										</th>
+										<th
+											colSpan={3}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											Worst
+										</th>
 									</tr>
 									<tr className="border-b bg-muted/50">
 										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
 										<th className="px-3 py-1 text-right font-normal">Crystals</th>
 										<th className="px-3 py-1 text-right font-normal">Scrolls</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Scrolls</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">Silver</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">Scrolls</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Scrolls
+										</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Scrolls
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -107,12 +130,14 @@ export function RestorationStrategyPage() {
 											>
 												<td className="px-3 py-2 font-medium">
 													{result.label}
-													{idx === 0 && (
-														<span className="ml-2 text-success text-[10px]">BEST</span>
-													)}
+													{idx === 0 && <span className="ml-2 text-success text-[10px]">BEST</span>}
 												</td>
-												<td className="px-3 py-2 text-right border-l">{formatSilver(result.p50.silver)}</td>
-												<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
+												<td className="px-3 py-2 text-right border-l">
+													{formatSilver(result.p50.silver)}
+												</td>
+												<td className="px-3 py-2 text-right">
+													{formatNumber(result.p50.crystals)}
+												</td>
 												<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
 												<td className="px-3 py-2 text-right border-l text-muted-foreground">
 													{formatSilver(result.p90.silver)}
@@ -131,7 +156,7 @@ export function RestorationStrategyPage() {
 												</td>
 												<td className="px-3 py-2 text-right text-muted-foreground">
 													{formatNumber(result.worst.scrolls)}
-								</td>
+												</td>
 											</tr>
 										))}
 								</tbody>

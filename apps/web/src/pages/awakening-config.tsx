@@ -8,11 +8,23 @@ import {
 import { ArrowLeft, ChevronDown, ChevronUp, Play, Search } from 'lucide-react'
 import { useState } from 'react'
 
-import { Button, Card, CardContent, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui'
+import {
+	Button,
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 
 export function AwakeningConfigPage() {
-	const { config, setConfig, setPage, speed, setSpeed, numSimulations, setNumSimulations } = useStore()
+	const { config, setConfig, setPage, speed, setSpeed, numSimulations, setNumSimulations } =
+		useStore()
 	const [showRates, setShowRates] = useState(false)
 
 	return (
@@ -63,7 +75,10 @@ export function AwakeningConfigPage() {
 					<div className="grid grid-cols-2 gap-3">
 						<div>
 							<label className="text-xs text-muted-foreground">Target Level</label>
-							<Select value={String(config.targetLevel)} onValueChange={(v) => setConfig({ targetLevel: Number(v) })}>
+							<Select
+								value={String(config.targetLevel)}
+								onValueChange={(v) => setConfig({ targetLevel: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -78,7 +93,10 @@ export function AwakeningConfigPage() {
 						</div>
 						<div>
 							<label className="text-xs text-muted-foreground">Start Level</label>
-							<Select value={String(config.startLevel)} onValueChange={(v) => setConfig({ startLevel: Number(v) })}>
+							<Select
+								value={String(config.startLevel)}
+								onValueChange={(v) => setConfig({ startLevel: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -96,7 +114,10 @@ export function AwakeningConfigPage() {
 					{config.startLevel === 7 && (
 						<div>
 							<label className="text-xs text-muted-foreground">Start Hepta Progress</label>
-							<Select value={String(config.startHepta)} onValueChange={(v) => setConfig({ startHepta: Number(v) })}>
+							<Select
+								value={String(config.startHepta)}
+								onValueChange={(v) => setConfig({ startHepta: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -114,7 +135,10 @@ export function AwakeningConfigPage() {
 					{config.startLevel === 8 && (
 						<div>
 							<label className="text-xs text-muted-foreground">Start Okta Progress</label>
-							<Select value={String(config.startOkta)} onValueChange={(v) => setConfig({ startOkta: Number(v) })}>
+							<Select
+								value={String(config.startOkta)}
+								onValueChange={(v) => setConfig({ startOkta: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -135,7 +159,9 @@ export function AwakeningConfigPage() {
 			<Card>
 				<CardHeader className="py-3">
 					<CardTitle className="text-sm">Hepta/Okta Failsafe Enhancement</CardTitle>
-					<p className="text-xs text-muted-foreground">Alternative paths using Exquisite Black Crystals</p>
+					<p className="text-xs text-muted-foreground">
+						Alternative paths using Exquisite Black Crystals
+					</p>
 				</CardHeader>
 				<CardContent className="space-y-2">
 					<label className="flex items-center gap-2 cursor-pointer">
@@ -163,13 +189,18 @@ export function AwakeningConfigPage() {
 			<Card>
 				<CardHeader className="py-3">
 					<CardTitle className="text-sm">Advice of Valks Settings</CardTitle>
-					<p className="text-xs text-muted-foreground">0 = Never use, I-X = Use starting from that level</p>
+					<p className="text-xs text-muted-foreground">
+						0 = Never use, I-X = Use starting from that level
+					</p>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div className="grid grid-cols-3 gap-2">
 						<div>
 							<label className="text-xs text-muted-foreground">+10% from</label>
-							<Select value={String(config.valks10From)} onValueChange={(v) => setConfig({ valks10From: Number(v) })}>
+							<Select
+								value={String(config.valks10From)}
+								onValueChange={(v) => setConfig({ valks10From: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -185,7 +216,10 @@ export function AwakeningConfigPage() {
 						</div>
 						<div>
 							<label className="text-xs text-muted-foreground">+50% from</label>
-							<Select value={String(config.valks50From)} onValueChange={(v) => setConfig({ valks50From: Number(v) })}>
+							<Select
+								value={String(config.valks50From)}
+								onValueChange={(v) => setConfig({ valks50From: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -201,7 +235,10 @@ export function AwakeningConfigPage() {
 						</div>
 						<div>
 							<label className="text-xs text-muted-foreground">+100% from</label>
-							<Select value={String(config.valks100From)} onValueChange={(v) => setConfig({ valks100From: Number(v) })}>
+							<Select
+								value={String(config.valks100From)}
+								onValueChange={(v) => setConfig({ valks100From: Number(v) })}
+							>
 								<SelectTrigger className="mt-1">
 									<SelectValue />
 								</SelectTrigger>
@@ -227,7 +264,10 @@ export function AwakeningConfigPage() {
 				<CardContent>
 					<div>
 						<label className="text-xs text-muted-foreground">Use restoration from level</label>
-						<Select value={String(config.restorationFrom)} onValueChange={(v) => setConfig({ restorationFrom: Number(v) })}>
+						<Select
+							value={String(config.restorationFrom)}
+							onValueChange={(v) => setConfig({ restorationFrom: Number(v) })}
+						>
 							<SelectTrigger className="mt-1">
 								<SelectValue />
 							</SelectTrigger>
@@ -280,7 +320,7 @@ export function AwakeningConfigPage() {
 						<input
 							type="number"
 							value={numSimulations}
-							onChange={(e) => setNumSimulations(parseInt(e.target.value, 10) || 1000)}
+							onChange={(e) => setNumSimulations(Number.parseInt(e.target.value, 10) || 1000)}
 							className="w-full mt-1 h-9 px-3 rounded-md border bg-input text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 						/>
 					</div>

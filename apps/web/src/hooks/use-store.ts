@@ -1,18 +1,23 @@
 import {
-	type MarketPrices,
-	type SimulationConfig,
-	type SimulationResult,
-	type StepResult,
 	AwakeningEngine,
 	DEFAULT_CONFIG,
 	DEFAULT_PRICES,
+	type MarketPrices,
 	ROMAN_NUMERALS,
+	type SimulationConfig,
+	type SimulationResult,
+	type StepResult,
 } from '@bdm-sim/simulator'
 import LZString from 'lz-string'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Page = 'home' | 'awakening-config' | 'simulation' | 'restoration-strategy' | 'hepta-okta-strategy'
+export type Page =
+	| 'home'
+	| 'awakening-config'
+	| 'simulation'
+	| 'restoration-strategy'
+	| 'hepta-okta-strategy'
 
 export type SimulationSpeed = 'instant' | 'fast' | 'regular'
 
@@ -316,9 +321,10 @@ export const useStore = create<AppState>()(
 				const state = get()
 				const numSims = state.numSimulations
 				const targetLevel = state.config.targetLevel
+				const prices = state.prices
 
 				// Test restoration from IV to target-1
-				const restorationOptions = []
+				const restorationOptions: number[] = []
 				for (let i = 4; i < targetLevel; i++) {
 					restorationOptions.push(i)
 				}
@@ -326,42 +332,70 @@ export const useStore = create<AppState>()(
 				const results: AppState['restorationStrategyResults'] = []
 				set({ strategyProgress: 0, restorationStrategyResults: [] })
 
-				for (let idx = 0; idx < restorationOptions.length; idx++) {
-					const restFrom = restorationOptions[idx]
-					const simResults: Array<{ crystals: number; scrolls: number; silver: number }> = []
+				const totalRuns = restorationOptions.length * numSims
+				let completed = 0
 
-					const config: SimulationConfig = {
+				for (const restFrom of restorationOptions) {
+					// Pre-allocate typed arrays for performance
+					const silverResults = new Float64Array(numSims)
+					const crystalResults = new Uint32Array(numSims)
+					const scrollResults = new Uint32Array(numSims)
+
+					// Create fresh config for this strategy
+					const simConfig: SimulationConfig = {
 						...state.config,
-						startLevel: 0, // Always start from 0 for strategy analysis
-						startHepta: 0, // Reset sub-enhancement progress
+						startLevel: 0,
+						startHepta: 0,
 						startOkta: 0,
 						restorationFrom: restFrom,
 						useHepta: false,
 						useOkta: false,
-						prices: state.prices,
+						prices,
 					}
 
+					// Run simulations
 					for (let i = 0; i < numSims; i++) {
-						const engine = new AwakeningEngine(config)
+						const engine = new AwakeningEngine(simConfig)
 						const [crystals, scrolls, silver] = engine.runFast()
-						simResults.push({ crystals, scrolls, silver })
 
-						if (i % 50 === 0) {
-							set({ strategyProgress: ((idx * numSims + i) / (restorationOptions.length * numSims)) * 100 })
+						silverResults[i] = silver
+						crystalResults[i] = crystals
+						scrollResults[i] = scrolls
+
+						completed++
+						if (completed % 500 === 0) {
+							set({ strategyProgress: (completed / totalRuns) * 100 })
 							await new Promise((r) => setTimeout(r, 0))
 						}
 					}
 
-					simResults.sort((a, b) => a.silver - b.silver)
-					const p50Idx = Math.floor(numSims * 0.5)
-					const p90Idx = Math.floor(numSims * 0.9)
+					// Sort indices by silver for percentile calculation
+					const indices = Array.from({ length: numSims }, (_, i) => i)
+					indices.sort((a, b) => silverResults[a] - silverResults[b])
+
+					// Calculate percentile indices with bounds check
+					const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+					const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+					const worstIdx = numSims - 1
 
 					results.push({
 						restorationFrom: restFrom,
 						label: `+${ROMAN_NUMERALS[restFrom]}`,
-						p50: simResults[p50Idx],
-						p90: simResults[p90Idx],
-						worst: simResults[numSims - 1],
+						p50: {
+							crystals: crystalResults[indices[p50Idx]],
+							scrolls: scrollResults[indices[p50Idx]],
+							silver: silverResults[indices[p50Idx]],
+						},
+						p90: {
+							crystals: crystalResults[indices[p90Idx]],
+							scrolls: scrollResults[indices[p90Idx]],
+							silver: silverResults[indices[p90Idx]],
+						},
+						worst: {
+							crystals: crystalResults[indices[worstIdx]],
+							scrolls: scrollResults[indices[worstIdx]],
+							silver: silverResults[indices[worstIdx]],
+						},
 					})
 
 					set({ restorationStrategyResults: [...results] })
@@ -373,6 +407,7 @@ export const useStore = create<AppState>()(
 			runHeptaOktaStrategy: async () => {
 				const state = get()
 				const numSims = state.numSimulations
+				const prices = state.prices
 
 				const strategies = [
 					{ useHepta: true, useOkta: true, label: 'Hepta+Okta' },
@@ -384,48 +419,76 @@ export const useStore = create<AppState>()(
 				const results: AppState['heptaOktaStrategyResults'] = []
 				set({ strategyProgress: 0, heptaOktaStrategyResults: [] })
 
-				for (let idx = 0; idx < strategies.length; idx++) {
-					const { useHepta, useOkta, label } = strategies[idx]
-					const simResults: Array<{
-						crystals: number
-						scrolls: number
-						silver: number
-						exquisite: number
-					}> = []
+				const totalRuns = strategies.length * numSims
+				let completed = 0
 
-					const config: SimulationConfig = {
+				for (const { useHepta, useOkta, label } of strategies) {
+					// Pre-allocate typed arrays for performance
+					const silverResults = new Float64Array(numSims)
+					const crystalResults = new Uint32Array(numSims)
+					const scrollResults = new Uint32Array(numSims)
+					const exquisiteResults = new Uint32Array(numSims)
+
+					// Create fresh config for this strategy
+					const simConfig: SimulationConfig = {
 						...state.config,
-						startLevel: 0, // Always start from 0 for strategy analysis
-						startHepta: 0, // Reset sub-enhancement progress
+						startLevel: 0,
+						startHepta: 0,
 						startOkta: 0,
-						restorationFrom: 6, // Fixed at +VI
+						restorationFrom: 6,
 						useHepta,
 						useOkta,
-						prices: state.prices,
+						prices,
 					}
 
+					// Run simulations
 					for (let i = 0; i < numSims; i++) {
-						const engine = new AwakeningEngine(config)
+						const engine = new AwakeningEngine(simConfig)
 						const [crystals, scrolls, silver, exquisite] = engine.runFast()
-						simResults.push({ crystals, scrolls, silver, exquisite })
 
-						if (i % 50 === 0) {
-							set({ strategyProgress: ((idx * numSims + i) / (strategies.length * numSims)) * 100 })
+						silverResults[i] = silver
+						crystalResults[i] = crystals
+						scrollResults[i] = scrolls
+						exquisiteResults[i] = exquisite
+
+						completed++
+						if (completed % 500 === 0) {
+							set({ strategyProgress: (completed / totalRuns) * 100 })
 							await new Promise((r) => setTimeout(r, 0))
 						}
 					}
 
-					simResults.sort((a, b) => a.silver - b.silver)
-					const p50Idx = Math.floor(numSims * 0.5)
-					const p90Idx = Math.floor(numSims * 0.9)
+					// Sort indices by silver for percentile calculation
+					const indices = Array.from({ length: numSims }, (_, i) => i)
+					indices.sort((a, b) => silverResults[a] - silverResults[b])
+
+					// Calculate percentile indices with bounds check
+					const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+					const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+					const worstIdx = numSims - 1
 
 					results.push({
 						useHepta,
 						useOkta,
 						label,
-						p50: simResults[p50Idx],
-						p90: simResults[p90Idx],
-						worst: simResults[numSims - 1],
+						p50: {
+							crystals: crystalResults[indices[p50Idx]],
+							scrolls: scrollResults[indices[p50Idx]],
+							silver: silverResults[indices[p50Idx]],
+							exquisite: exquisiteResults[indices[p50Idx]],
+						},
+						p90: {
+							crystals: crystalResults[indices[p90Idx]],
+							scrolls: scrollResults[indices[p90Idx]],
+							silver: silverResults[indices[p90Idx]],
+							exquisite: exquisiteResults[indices[p90Idx]],
+						},
+						worst: {
+							crystals: crystalResults[indices[worstIdx]],
+							scrolls: scrollResults[indices[worstIdx]],
+							silver: silverResults[indices[worstIdx]],
+							exquisite: exquisiteResults[indices[worstIdx]],
+						},
 					})
 
 					set({ heptaOktaStrategyResults: [...results] })
@@ -478,7 +541,7 @@ export const useStore = create<AppState>()(
 
 				try {
 					const steps = JSON.parse(
-						LZString.decompressFromUTF16(run.stepsCompressed) || '[]'
+						LZString.decompressFromUTF16(run.stepsCompressed) || '[]',
 					) as StepResult[]
 
 					set({
@@ -508,9 +571,7 @@ export const useStore = create<AppState>()(
 
 			togglePinRun: (id: string) => {
 				const state = get()
-				const newRuns = state.savedRuns.map((r) =>
-					r.id === id ? { ...r, pinned: !r.pinned } : r
-				)
+				const newRuns = state.savedRuns.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r))
 				persistSavedRuns(newRuns)
 				set({ savedRuns: newRuns })
 			},
@@ -538,6 +599,6 @@ export const useStore = create<AppState>()(
 					numSimulations: persisted.numSimulations ?? currentState.numSimulations,
 				}
 			},
-		}
-	)
+		},
+	),
 )

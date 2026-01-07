@@ -45,7 +45,7 @@ function PriceInput({
 					value={input}
 					onChange={(e) => {
 						setInput(e.target.value)
-						const num = parseInt(e.target.value.replace(/,/g, ''), 10)
+						const num = Number.parseInt(e.target.value.replace(/,/g, ''), 10)
 						if (!isNaN(num)) onChange(num)
 					}}
 					onBlur={() => setInput(String(value))}

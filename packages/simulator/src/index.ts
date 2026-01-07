@@ -3,6 +3,7 @@ export { AwakeningEngine } from './simulator'
 
 // Types
 export type {
+	CompactLogEntry,
 	HeptaOktaStrategyResult,
 	MarketPrices,
 	ModuleInfo,
@@ -10,11 +11,18 @@ export type {
 	RestorationStrategyResult,
 	SimulationConfig,
 	SimulationResult,
+	StatsSnapshot,
 	StepResult,
 } from './types'
 
 // Type utilities
-export { DEFAULT_CONFIG, getRestorationAttemptCost, MODULES } from './types'
+export {
+	compactifyStep,
+	DEFAULT_CONFIG,
+	expandStep,
+	getRestorationAttemptCost,
+	MODULES,
+} from './types'
 
 // Configuration
 export {

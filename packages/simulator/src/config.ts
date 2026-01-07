@@ -99,26 +99,26 @@ export const DEFAULT_PRICES = {
 
 /** Pre-computed rate caches for performance */
 export const RATE_CACHE = Object.fromEntries(
-	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [Number(level), rate])
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [Number(level), rate]),
 )
 
 export const RATE_CACHE_VALKS_10 = Object.fromEntries(
 	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
 		Number(level),
 		Math.min(1.0, rate * VALKS_MULTIPLIER_10),
-	])
+	]),
 )
 
 export const RATE_CACHE_VALKS_50 = Object.fromEntries(
 	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
 		Number(level),
 		Math.min(1.0, rate * VALKS_MULTIPLIER_50),
-	])
+	]),
 )
 
 export const RATE_CACHE_VALKS_100 = Object.fromEntries(
 	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
 		Number(level),
 		Math.min(1.0, rate * VALKS_MULTIPLIER_100),
-	])
+	]),
 )

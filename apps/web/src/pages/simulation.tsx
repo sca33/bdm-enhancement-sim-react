@@ -140,7 +140,8 @@ export function SimulationPage() {
 		none: '',
 		success: 'fixed inset-0 z-[100] pointer-events-none bg-success/40 animate-flash-short',
 		fail: 'fixed inset-0 z-[100] pointer-events-none bg-black/50 animate-flash-short',
-		complete: 'fixed inset-0 z-[100] pointer-events-none bg-gradient-to-r from-success/60 via-accent/60 to-success/60 animate-flash-long',
+		complete:
+			'fixed inset-0 z-[100] pointer-events-none bg-gradient-to-r from-success/60 via-accent/60 to-success/60 animate-flash-long',
 	}
 
 	return (
@@ -151,7 +152,14 @@ export function SimulationPage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-2">
-					<Button variant="ghost" size="icon" onClick={() => { stopSimulation(); setPage('awakening-config') }}>
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={() => {
+							stopSimulation()
+							setPage('awakening-config')
+						}}
+					>
 						<ArrowLeft className="w-4 h-4" />
 					</Button>
 					<span className="text-sm font-medium">Simulation</span>
@@ -210,22 +218,32 @@ export function SimulationPage() {
 						{[5, 6, 7, 8, 9, 10].map((level) => (
 							<div key={level} className="grid grid-cols-3 gap-1">
 								<span className="font-medium">{ROMAN_NUMERALS[level]}</span>
-								<span className="text-right">{anvilEnergy[level] ?? 0}/{ANVIL_THRESHOLDS[level]}</span>
+								<span className="text-right">
+									{anvilEnergy[level] ?? 0}/{ANVIL_THRESHOLDS[level]}
+								</span>
 								<span className="text-right text-success">{levelSuccesses[level] ?? 0}</span>
 							</div>
 						))}
 						{config.useHepta && (
 							<div className="grid grid-cols-3 gap-1 border-t pt-1 mt-1">
 								<span className="font-medium">Hepta</span>
-								<span className="text-right">{heptaPity}/{HEPTA_OKTA_ANVIL_PITY}</span>
-								<span className="text-right text-accent">{heptaProgress}/{HEPTA_SUB_ENHANCEMENTS}</span>
+								<span className="text-right">
+									{heptaPity}/{HEPTA_OKTA_ANVIL_PITY}
+								</span>
+								<span className="text-right text-accent">
+									{heptaProgress}/{HEPTA_SUB_ENHANCEMENTS}
+								</span>
 							</div>
 						)}
 						{config.useOkta && (
 							<div className="grid grid-cols-3 gap-1">
 								<span className="font-medium">Okta</span>
-								<span className="text-right">{oktaPity}/{HEPTA_OKTA_ANVIL_PITY}</span>
-								<span className="text-right text-accent">{oktaProgress}/{OKTA_SUB_ENHANCEMENTS}</span>
+								<span className="text-right">
+									{oktaPity}/{HEPTA_OKTA_ANVIL_PITY}
+								</span>
+								<span className="text-right text-accent">
+									{oktaProgress}/{OKTA_SUB_ENHANCEMENTS}
+								</span>
 							</div>
 						)}
 					</CardContent>
@@ -275,16 +293,30 @@ export function SimulationPage() {
 
 			{/* Controls */}
 			<div className="flex gap-2">
-				<Button variant="outline" onClick={() => { stopSimulation(); setPage('awakening-config') }}>
+				<Button
+					variant="outline"
+					onClick={() => {
+						stopSimulation()
+						setPage('awakening-config')
+					}}
+				>
 					Back
 				</Button>
 				<Button
 					variant={isPaused ? 'success' : 'default'}
-					onClick={() => isPaused ? resumeSimulation() : pauseSimulation()}
+					onClick={() => (isPaused ? resumeSimulation() : pauseSimulation())}
 					disabled={!isRunning}
 					className="flex-1"
 				>
-					{isPaused ? <><Play className="w-4 h-4 mr-1" /> Resume</> : <><Pause className="w-4 h-4 mr-1" /> Pause</>}
+					{isPaused ? (
+						<>
+							<Play className="w-4 h-4 mr-1" /> Resume
+						</>
+					) : (
+						<>
+							<Pause className="w-4 h-4 mr-1" /> Pause
+						</>
+					)}
 				</Button>
 				<Button variant="outline" onClick={handleRestart} disabled={isCalculating}>
 					{isCalculating ? (
@@ -306,21 +338,23 @@ function LogEntry({ step }: { step: ReturnType<typeof useStore.getState>['stepHi
 		if (step.pathComplete) {
 			return (
 				<div className="text-accent font-semibold">
-					═══ {step.pathName} COMPLETE! {ROMAN_NUMERALS[step.startingLevel]} → {ROMAN_NUMERALS[step.endingLevel]} ═══
+					═══ {step.pathName} COMPLETE! {ROMAN_NUMERALS[step.startingLevel]} →{' '}
+					{ROMAN_NUMERALS[step.endingLevel]} ═══
 				</div>
 			)
 		}
 
 		return (
 			<div>
-				<span className="text-accent">{step.pathName}</span>{' '}
-				({step.subProgress}/{maxSubs}):{' '}
+				<span className="text-accent">{step.pathName}</span> ({step.subProgress}/{maxSubs}):{' '}
 				{step.anvilTriggered ? (
 					<span className="text-warning font-semibold">ANVIL SUCCESS!</span>
 				) : step.success ? (
 					<span className="text-success">SUB SUCCESS</span>
 				) : (
-					<span className="text-destructive">FAIL (pity: {step.subPity}/{HEPTA_OKTA_ANVIL_PITY})</span>
+					<span className="text-destructive">
+						FAIL (pity: {step.subPity}/{HEPTA_OKTA_ANVIL_PITY})
+					</span>
 				)}
 			</div>
 		)
@@ -345,12 +379,17 @@ function LogEntry({ step }: { step: ReturnType<typeof useStore.getState>['stepHi
 					{step.restorationSuccess ? (
 						<span className="text-info">SAVED</span>
 					) : (
-						<span className="text-destructive font-semibold">FAILED ↓ {ROMAN_NUMERALS[step.endingLevel]}</span>
+						<span className="text-destructive font-semibold">
+							FAILED ↓ {ROMAN_NUMERALS[step.endingLevel]}
+						</span>
 					)}
 				</>
 			)}
 			{step.success && !step.restorationAttempted && (
-				<span className="text-success font-semibold"> ↑ Now at +{ROMAN_NUMERALS[step.endingLevel]}</span>
+				<span className="text-success font-semibold">
+					{' '}
+					↑ Now at +{ROMAN_NUMERALS[step.endingLevel]}
+				</span>
 			)}
 		</div>
 	)

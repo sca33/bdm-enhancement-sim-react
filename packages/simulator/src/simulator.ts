@@ -19,8 +19,8 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	RATE_CACHE,
 	RATE_CACHE_VALKS_10,
-	RATE_CACHE_VALKS_100,
 	RATE_CACHE_VALKS_50,
+	RATE_CACHE_VALKS_100,
 	RESTORATION_MARKET_BUNDLE_SIZE,
 	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
@@ -48,20 +48,20 @@ export class AwakeningEngine {
 	private rng: () => number
 
 	// State
-	private level: number = 0
+	private level = 0
 	private anvilEnergy: Record<number, number> = {}
-	private crystals: number = 0
-	private scrolls: number = 0
-	private silver: number = 0
-	private exquisiteCrystals: number = 0
-	private valks10Used: number = 0
-	private valks50Used: number = 0
-	private valks100Used: number = 0
-	private attempts: number = 0
-	private heptaProgress: number = 0
-	private oktaProgress: number = 0
-	private heptaPity: number = 0
-	private oktaPity: number = 0
+	private crystals = 0
+	private scrolls = 0
+	private silver = 0
+	private exquisiteCrystals = 0
+	private valks10Used = 0
+	private valks50Used = 0
+	private valks100Used = 0
+	private attempts = 0
+	private heptaProgress = 0
+	private oktaProgress = 0
+	private heptaPity = 0
+	private oktaPity = 0
 
 	// Cached config values for performance
 	private readonly targetLevel: number
@@ -103,7 +103,7 @@ export class AwakeningEngine {
 		this.exquisiteCost =
 			Math.floor(
 				(EXQUISITE_BLACK_CRYSTAL_RECIPE.restorationScrolls * prices.restorationBundlePrice) /
-					RESTORATION_MARKET_BUNDLE_SIZE
+					RESTORATION_MARKET_BUNDLE_SIZE,
 			) +
 			EXQUISITE_BLACK_CRYSTAL_RECIPE.valks100 * prices.valks100Price +
 			EXQUISITE_BLACK_CRYSTAL_RECIPE.pristineBlackCrystal * prices.crystalPrice
