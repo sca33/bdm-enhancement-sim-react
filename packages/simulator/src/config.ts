@@ -102,6 +102,7 @@ export const RATE_CACHE = Object.fromEntries(
 	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [Number(level), rate]),
 )
 
+// Single Valks buffs
 export const RATE_CACHE_VALKS_10 = Object.fromEntries(
 	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
 		Number(level),
@@ -122,3 +123,46 @@ export const RATE_CACHE_VALKS_100 = Object.fromEntries(
 		Math.min(1.0, rate * VALKS_MULTIPLIER_100),
 	]),
 )
+
+// Stacked Valks buffs (multiplicative stacking)
+export const RATE_CACHE_VALKS_10_50 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_10 * VALKS_MULTIPLIER_50),
+	]),
+)
+
+export const RATE_CACHE_VALKS_10_100 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_10 * VALKS_MULTIPLIER_100),
+	]),
+)
+
+export const RATE_CACHE_VALKS_50_100 = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_50 * VALKS_MULTIPLIER_100),
+	]),
+)
+
+export const RATE_CACHE_VALKS_ALL = Object.fromEntries(
+	Object.entries(ENHANCEMENT_RATES).map(([level, rate]) => [
+		Number(level),
+		Math.min(1.0, rate * VALKS_MULTIPLIER_10 * VALKS_MULTIPLIER_50 * VALKS_MULTIPLIER_100),
+	]),
+)
+
+/** UI and simulation runner constants */
+export const UI_CONSTANTS = {
+	/** Ring buffer size for step history */
+	STEP_BUFFER_SIZE: 1000,
+	/** Maximum saved simulation runs */
+	MAX_SAVED_RUNS: 50,
+	/** Number of steps to process per chunk in instant mode */
+	INSTANT_CHUNK_SIZE: 1000,
+	/** Progress reporting interval (every N simulations) */
+	PROGRESS_REPORT_INTERVAL: 500,
+	/** Average enhancement animation time in seconds (for time estimation) */
+	AVG_ANIMATION_TIME: 0.75,
+}

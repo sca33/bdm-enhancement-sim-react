@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@/components/error-boundary'
 import { Settings } from '@/components/settings'
 import { useStore } from '@/hooks/use-store'
 import {
@@ -8,7 +9,7 @@ import {
 	SimulationPage,
 } from '@/pages'
 
-export default function App() {
+function AppContent() {
 	const currentPage = useStore((s) => s.currentPage)
 
 	const renderPage = () => {
@@ -63,5 +64,13 @@ export default function App() {
 				</footer>
 			)}
 		</div>
+	)
+}
+
+export default function App() {
+	return (
+		<ErrorBoundary>
+			<AppContent />
+		</ErrorBoundary>
 	)
 }

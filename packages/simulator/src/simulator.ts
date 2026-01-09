@@ -19,8 +19,12 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	RATE_CACHE,
 	RATE_CACHE_VALKS_10,
+	RATE_CACHE_VALKS_10_100,
+	RATE_CACHE_VALKS_10_50,
 	RATE_CACHE_VALKS_50,
+	RATE_CACHE_VALKS_50_100,
 	RATE_CACHE_VALKS_100,
+	RATE_CACHE_VALKS_ALL,
 	RESTORATION_MARKET_BUNDLE_SIZE,
 	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
@@ -293,19 +297,36 @@ export class AwakeningEngine {
 		const startingLevel = this.level
 		const nextLevel = this.level + 1
 
-		// Determine valks and get rate
-		let valksType: string | null = null
-		let baseRate: number
+		// Determine which Valks are active (stacking supported)
+		const use10 = this.valks10From > 0 && nextLevel >= this.valks10From
+		const use50 = this.valks50From > 0 && nextLevel >= this.valks50From
+		const use100 = this.valks100From > 0 && nextLevel >= this.valks100From
 
-		if (this.valks100From > 0 && nextLevel >= this.valks100From) {
-			valksType = '100'
+		// Get rate from appropriate cache based on active Valks combination
+		let baseRate: number
+		let valksType: string | null = null
+
+		if (use10 && use50 && use100) {
+			baseRate = RATE_CACHE_VALKS_ALL[nextLevel] ?? 0.01
+			valksType = '10+50+100'
+		} else if (use50 && use100) {
+			baseRate = RATE_CACHE_VALKS_50_100[nextLevel] ?? 0.01
+			valksType = '50+100'
+		} else if (use10 && use100) {
+			baseRate = RATE_CACHE_VALKS_10_100[nextLevel] ?? 0.01
+			valksType = '10+100'
+		} else if (use10 && use50) {
+			baseRate = RATE_CACHE_VALKS_10_50[nextLevel] ?? 0.01
+			valksType = '10+50'
+		} else if (use100) {
 			baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
-		} else if (this.valks50From > 0 && nextLevel >= this.valks50From) {
-			valksType = '50'
+			valksType = '100'
+		} else if (use50) {
 			baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
-		} else if (this.valks10From > 0 && nextLevel >= this.valks10From) {
-			valksType = '10'
+			valksType = '50'
+		} else if (use10) {
 			baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+			valksType = '10'
 		} else {
 			baseRate = RATE_CACHE[nextLevel] ?? 0.01
 		}
@@ -320,13 +341,16 @@ export class AwakeningEngine {
 		this.crystals++
 		this.silver += this.crystalPrice
 
-		if (valksType === '10') {
+		// Track each Valks used (stacking means multiple can be used)
+		if (use10) {
 			this.valks10Used++
 			this.silver += this.valks10Price
-		} else if (valksType === '50') {
+		}
+		if (use50) {
 			this.valks50Used++
 			this.silver += this.valks50Price
-		} else if (valksType === '100') {
+		}
+		if (use100) {
 			this.valks100Used++
 			this.silver += this.valks100Price
 		}
@@ -492,20 +516,35 @@ export class AwakeningEngine {
 			// Normal enhancement
 			const nextLevel = level + 1
 
-			// Get rate based on valks
+			// Determine which Valks are active (stacking supported)
+			const use10 = valks10From > 0 && nextLevel >= valks10From
+			const use50 = valks50From > 0 && nextLevel >= valks50From
+			const use100 = valks100From > 0 && nextLevel >= valks100From
+
+			// Get rate from appropriate cache based on active Valks combination
 			let baseRate: number
-			if (valks100From > 0 && nextLevel >= valks100From) {
+			if (use10 && use50 && use100) {
+				baseRate = RATE_CACHE_VALKS_ALL[nextLevel] ?? 0.01
+			} else if (use50 && use100) {
+				baseRate = RATE_CACHE_VALKS_50_100[nextLevel] ?? 0.01
+			} else if (use10 && use100) {
+				baseRate = RATE_CACHE_VALKS_10_100[nextLevel] ?? 0.01
+			} else if (use10 && use50) {
+				baseRate = RATE_CACHE_VALKS_10_50[nextLevel] ?? 0.01
+			} else if (use100) {
 				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
-				silver += valks100Price
-			} else if (valks50From > 0 && nextLevel >= valks50From) {
+			} else if (use50) {
 				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
-				silver += valks50Price
-			} else if (valks10From > 0 && nextLevel >= valks10From) {
+			} else if (use10) {
 				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
-				silver += valks10Price
 			} else {
 				baseRate = RATE_CACHE[nextLevel] ?? 0.01
 			}
+
+			// Track Valks costs (stacking means multiple can be used)
+			if (use10) silver += valks10Price
+			if (use50) silver += valks50Price
+			if (use100) silver += valks100Price
 
 			crystals++
 			silver += crystalPrice
