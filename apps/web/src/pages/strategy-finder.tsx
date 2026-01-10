@@ -6,7 +6,7 @@ import {
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
 import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 import { DistributionHistogram } from '@/components/distribution-graph'
 import {
@@ -392,9 +392,8 @@ function RestorationStrategyTab({
 										const isExpanded = expandedRows.has(result.restorationFrom)
 										const colSpan = allUnlimited ? 10 : 11
 										return (
-											<>
+											<Fragment key={result.restorationFrom}>
 												<tr
-													key={result.restorationFrom}
 													onClick={() => toggleRowExpansion(result.restorationFrom)}
 													className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${
 														idx === 0 && (allUnlimited || result.successRate >= 50)
@@ -455,7 +454,7 @@ function RestorationStrategyTab({
 													</td>
 												</tr>
 												{isExpanded && (
-													<tr key={`${result.restorationFrom}-expanded`} className="border-b bg-muted/20">
+													<tr className="border-b bg-muted/20">
 														<td colSpan={colSpan} className="px-4 py-3">
 															<DistributionHistogram
 																distribution={result.distribution}
@@ -464,7 +463,7 @@ function RestorationStrategyTab({
 														</td>
 													</tr>
 												)}
-											</>
+											</Fragment>
 										)
 									})}
 								</tbody>
@@ -755,9 +754,8 @@ function HeptaOktaStrategyTab({
 									{results.map((result, idx) => {
 										const isExpanded = expandedRows.has(result.label)
 										return (
-											<>
+											<Fragment key={result.label}>
 												<tr
-													key={result.label}
 													onClick={() => toggleRowExpansion(result.label)}
 													className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${idx === 0 ? 'bg-success/10' : ''}`}
 												>
@@ -804,7 +802,7 @@ function HeptaOktaStrategyTab({
 													</td>
 												</tr>
 												{isExpanded && (
-													<tr key={`${result.label}-expanded`} className="border-b bg-muted/20">
+													<tr className="border-b bg-muted/20">
 														<td colSpan={13} className="px-4 py-3">
 															<DistributionHistogram
 																distribution={result.distribution}
@@ -813,7 +811,7 @@ function HeptaOktaStrategyTab({
 														</td>
 													</tr>
 												)}
-											</>
+											</Fragment>
 										)
 									})}
 								</tbody>

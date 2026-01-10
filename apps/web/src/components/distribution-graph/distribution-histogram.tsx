@@ -58,17 +58,22 @@ type DistributionGraphProps = {
 }
 
 function DistributionGraph({ distribution, height, variant = 'success' }: DistributionGraphProps) {
-	const { buckets, percentiles, stats } = distribution
+	const { buckets, percentiles } = distribution
 
 	// Calculate max for normalization
 	const maxPercentage = Math.max(...buckets.map((b) => b.percentage))
 
-	// X scale: value to percentage position
-	const range = stats.max - stats.min
-	const valueToX = (value: number) => (range > 0 ? ((value - stats.min) / range) * 100 : 50)
-
 	// X scale: bucket index to percentage
 	const xScale = (index: number) => (index / buckets.length) * 100
+
+	// Find bucket index for a given value and return x position centered in bucket
+	const valueToBucketX = (value: number) => {
+		const bucketIdx = buckets.findIndex((b) => value >= b.min && value < b.max)
+		// If not found (e.g., value equals max), use last bucket
+		const idx = bucketIdx === -1 ? buckets.length - 1 : bucketIdx
+		// Center the marker in the bucket
+		return xScale(idx) + 100 / buckets.length / 2
+	}
 
 	const barColor = variant === 'failed' ? 'var(--color-destructive)' : 'var(--color-primary)'
 
@@ -119,9 +124,9 @@ function DistributionGraph({ distribution, height, variant = 'success' }: Distri
 					<>
 						{/* P50 marker */}
 						<line
-							x1={`${valueToX(percentiles.p50)}%`}
+							x1={`${valueToBucketX(percentiles.p50)}%`}
 							y1="0"
-							x2={`${valueToX(percentiles.p50)}%`}
+							x2={`${valueToBucketX(percentiles.p50)}%`}
 							y2={height}
 							stroke="var(--color-accent)"
 							strokeWidth="1.5"
@@ -130,9 +135,9 @@ function DistributionGraph({ distribution, height, variant = 'success' }: Distri
 
 						{/* P90 marker */}
 						<line
-							x1={`${valueToX(percentiles.p90)}%`}
+							x1={`${valueToBucketX(percentiles.p90)}%`}
 							y1="0"
-							x2={`${valueToX(percentiles.p90)}%`}
+							x2={`${valueToBucketX(percentiles.p90)}%`}
 							y2={height}
 							stroke="var(--color-warning)"
 							strokeWidth="1.5"
