@@ -19,12 +19,8 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	RATE_CACHE,
 	RATE_CACHE_VALKS_10,
-	RATE_CACHE_VALKS_10_50,
-	RATE_CACHE_VALKS_10_100,
 	RATE_CACHE_VALKS_50,
-	RATE_CACHE_VALKS_50_100,
 	RATE_CACHE_VALKS_100,
-	RATE_CACHE_VALKS_ALL,
 	RESTORATION_MARKET_BUNDLE_SIZE,
 	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
@@ -297,36 +293,20 @@ export class AwakeningEngine {
 		const startingLevel = this.level
 		const nextLevel = this.level + 1
 
-		// Determine which Valks are active (stacking supported)
-		const use10 = this.valks10From > 0 && nextLevel >= this.valks10From
-		const use50 = this.valks50From > 0 && nextLevel >= this.valks50From
-		const use100 = this.valks100From > 0 && nextLevel >= this.valks100From
-
-		// Get rate from appropriate cache based on active Valks combination
-		let baseRate: number
+		// Determine valks type - priority based (only ONE type per attempt)
+		// Priority: 100 > 50 > 10 (use highest available)
 		let valksType: string | null = null
+		let baseRate: number
 
-		if (use10 && use50 && use100) {
-			baseRate = RATE_CACHE_VALKS_ALL[nextLevel] ?? 0.01
-			valksType = '10+50+100'
-		} else if (use50 && use100) {
-			baseRate = RATE_CACHE_VALKS_50_100[nextLevel] ?? 0.01
-			valksType = '50+100'
-		} else if (use10 && use100) {
-			baseRate = RATE_CACHE_VALKS_10_100[nextLevel] ?? 0.01
-			valksType = '10+100'
-		} else if (use10 && use50) {
-			baseRate = RATE_CACHE_VALKS_10_50[nextLevel] ?? 0.01
-			valksType = '10+50'
-		} else if (use100) {
-			baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+		if (this.valks100From > 0 && nextLevel >= this.valks100From) {
 			valksType = '100'
-		} else if (use50) {
-			baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+			baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+		} else if (this.valks50From > 0 && nextLevel >= this.valks50From) {
 			valksType = '50'
-		} else if (use10) {
-			baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+			baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+		} else if (this.valks10From > 0 && nextLevel >= this.valks10From) {
 			valksType = '10'
+			baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
 		} else {
 			baseRate = RATE_CACHE[nextLevel] ?? 0.01
 		}
@@ -341,16 +321,14 @@ export class AwakeningEngine {
 		this.crystals++
 		this.silver += this.crystalPrice
 
-		// Track each Valks used (stacking means multiple can be used)
-		if (use10) {
+		// Track Valks used (only ONE type per attempt)
+		if (valksType === '10') {
 			this.valks10Used++
 			this.silver += this.valks10Price
-		}
-		if (use50) {
+		} else if (valksType === '50') {
 			this.valks50Used++
 			this.silver += this.valks50Price
-		}
-		if (use100) {
+		} else if (valksType === '100') {
 			this.valks100Used++
 			this.silver += this.valks100Price
 		}
@@ -439,8 +417,8 @@ export class AwakeningEngine {
 		}
 	}
 
-	/** Fast simulation returning minimal tuple (crystals, scrolls, silver, exquisite) */
-	runFast(): [number, number, number, number] {
+	/** Fast simulation returning minimal tuple (crystals, scrolls, silver, exquisite, valks10, valks50, valks100) */
+	runFast(): [number, number, number, number, number, number, number] {
 		// Local variable caching for maximum performance
 		let level = this.level
 		const targetLevel = this.targetLevel
@@ -464,6 +442,9 @@ export class AwakeningEngine {
 		let scrolls = 0
 		let silver = 0
 		let exquisiteCrystals = 0
+		let valks10Used = 0
+		let valks50Used = 0
+		let valks100Used = 0
 
 		let heptaProgress = this.heptaProgress
 		let oktaProgress = this.oktaProgress
@@ -516,35 +497,24 @@ export class AwakeningEngine {
 			// Normal enhancement
 			const nextLevel = level + 1
 
-			// Determine which Valks are active (stacking supported)
-			const use10 = valks10From > 0 && nextLevel >= valks10From
-			const use50 = valks50From > 0 && nextLevel >= valks50From
-			const use100 = valks100From > 0 && nextLevel >= valks100From
-
-			// Get rate from appropriate cache based on active Valks combination
+			// Determine valks type - priority based (only ONE type per attempt)
+			// Priority: 100 > 50 > 10 (use highest available)
 			let baseRate: number
-			if (use10 && use50 && use100) {
-				baseRate = RATE_CACHE_VALKS_ALL[nextLevel] ?? 0.01
-			} else if (use50 && use100) {
-				baseRate = RATE_CACHE_VALKS_50_100[nextLevel] ?? 0.01
-			} else if (use10 && use100) {
-				baseRate = RATE_CACHE_VALKS_10_100[nextLevel] ?? 0.01
-			} else if (use10 && use50) {
-				baseRate = RATE_CACHE_VALKS_10_50[nextLevel] ?? 0.01
-			} else if (use100) {
+			if (valks100From > 0 && nextLevel >= valks100From) {
 				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
-			} else if (use50) {
+				silver += valks100Price
+				valks100Used++
+			} else if (valks50From > 0 && nextLevel >= valks50From) {
 				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
-			} else if (use10) {
+				silver += valks50Price
+				valks50Used++
+			} else if (valks10From > 0 && nextLevel >= valks10From) {
 				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+				silver += valks10Price
+				valks10Used++
 			} else {
 				baseRate = RATE_CACHE[nextLevel] ?? 0.01
 			}
-
-			// Track Valks costs (stacking means multiple can be used)
-			if (use10) silver += valks10Price
-			if (use50) silver += valks50Price
-			if (use100) silver += valks100Price
 
 			crystals++
 			silver += crystalPrice
@@ -571,6 +541,177 @@ export class AwakeningEngine {
 			}
 		}
 
-		return [crystals, scrolls, silver, exquisiteCrystals]
+		return [crystals, scrolls, silver, exquisiteCrystals, valks10Used, valks50Used, valks100Used]
+	}
+
+	/**
+	 * Fast simulation with resource limits.
+	 * Returns [crystals, scrolls, silver, exquisite, valks10, valks50, valks100, success]
+	 * where success is 1 if target reached, 0 if resources exhausted
+	 */
+	runFastWithLimits(limits: {
+		crystals?: number
+		scrolls?: number
+		valks10?: number
+		valks50?: number
+		valks100?: number
+	}): [number, number, number, number, number, number, number, number] {
+		// Local variable caching for maximum performance
+		let level = this.level
+		const targetLevel = this.targetLevel
+		const anvilEnergy = this.anvilEnergy
+		const rng = this.rng
+
+		const restorationFrom = this.restorationFrom
+		const useHepta = this.useHepta
+		const useOkta = this.useOkta
+		const valks100From = this.valks100From
+		const valks50From = this.valks50From
+		const valks10From = this.valks10From
+		const crystalPrice = this.crystalPrice
+		const valks10Price = this.valks10Price
+		const valks50Price = this.valks50Price
+		const valks100Price = this.valks100Price
+		const restorationCost = this.restorationAttemptCost
+		const exquisiteCost = this.exquisiteCost
+
+		// Resource limits (undefined = unlimited)
+		const maxCrystals = limits.crystals
+		const maxScrolls = limits.scrolls
+		const maxValks10 = limits.valks10
+		const maxValks50 = limits.valks50
+		const maxValks100 = limits.valks100
+
+		let crystals = 0
+		let scrolls = 0
+		let silver = 0
+		let exquisiteCrystals = 0
+		let valks10Used = 0
+		let valks50Used = 0
+		let valks100Used = 0
+
+		let heptaProgress = this.heptaProgress
+		let oktaProgress = this.oktaProgress
+		let heptaPity = 0
+		let oktaPity = 0
+
+		while (level < targetLevel) {
+			// Check Hepta path
+			if (
+				(useHepta || heptaProgress > 0) &&
+				level === 7 &&
+				heptaProgress < HEPTA_SUB_ENHANCEMENTS
+			) {
+				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+
+				if (heptaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+					heptaProgress++
+					heptaPity = 0
+					if (heptaProgress >= HEPTA_SUB_ENHANCEMENTS) {
+						level = 8
+						anvilEnergy[8] = 0
+						heptaProgress = 0
+					}
+				} else {
+					heptaPity++
+				}
+				continue
+			}
+
+			// Check Okta path
+			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < OKTA_SUB_ENHANCEMENTS) {
+				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+
+				if (oktaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+					oktaProgress++
+					oktaPity = 0
+					if (oktaProgress >= OKTA_SUB_ENHANCEMENTS) {
+						level = 9
+						anvilEnergy[9] = 0
+						oktaProgress = 0
+					}
+				} else {
+					oktaPity++
+				}
+				continue
+			}
+
+			// Normal enhancement
+			const nextLevel = level + 1
+
+			// Check crystal limit before attempting
+			if (maxCrystals !== undefined && crystals >= maxCrystals) {
+				return [crystals, scrolls, silver, exquisiteCrystals, valks10Used, valks50Used, valks100Used, 0]
+			}
+
+			// Determine valks type - priority based (only ONE type per attempt)
+			// Priority: 100 > 50 > 10 (use highest available)
+			// Also check if we have enough valks
+			let baseRate: number
+			let canUseValks100 = valks100From > 0 && nextLevel >= valks100From
+			let canUseValks50 = valks50From > 0 && nextLevel >= valks50From
+			let canUseValks10 = valks10From > 0 && nextLevel >= valks10From
+
+			// Check valks limits
+			if (canUseValks100 && maxValks100 !== undefined && valks100Used >= maxValks100) {
+				canUseValks100 = false
+			}
+			if (canUseValks50 && maxValks50 !== undefined && valks50Used >= maxValks50) {
+				canUseValks50 = false
+			}
+			if (canUseValks10 && maxValks10 !== undefined && valks10Used >= maxValks10) {
+				canUseValks10 = false
+			}
+
+			if (canUseValks100) {
+				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+				silver += valks100Price
+				valks100Used++
+			} else if (canUseValks50) {
+				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+				silver += valks50Price
+				valks50Used++
+			} else if (canUseValks10) {
+				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+				silver += valks10Price
+				valks10Used++
+			} else {
+				baseRate = RATE_CACHE[nextLevel] ?? 0.01
+			}
+
+			crystals++
+			silver += crystalPrice
+
+			// Check anvil pity
+			const currentEnergy = anvilEnergy[nextLevel] ?? 0
+			const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+			const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
+
+			if (anvilTriggered || rng() < baseRate) {
+				level = nextLevel
+				anvilEnergy[nextLevel] = 0
+			} else {
+				anvilEnergy[nextLevel] = currentEnergy + 1
+				if (level > 0 && restorationFrom > 0 && level >= restorationFrom) {
+					// Check scroll limit before using restoration
+					if (maxScrolls !== undefined && scrolls + RESTORATION_PER_ATTEMPT > maxScrolls) {
+						// Can't use restoration, must downgrade
+						level--
+					} else {
+						scrolls += RESTORATION_PER_ATTEMPT
+						silver += restorationCost
+						if (rng() >= RESTORATION_SUCCESS_RATE) {
+							level--
+						}
+					}
+				} else if (level > 0) {
+					level--
+				}
+			}
+		}
+
+		return [crystals, scrolls, silver, exquisiteCrystals, valks10Used, valks50Used, valks100Used, 1]
 	}
 }

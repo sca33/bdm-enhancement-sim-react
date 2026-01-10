@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
 	HeptaOktaResult,
 	RestorationResult,
+	ResourceLimits,
 	StrategyRequest,
 	StrategyResponse,
 } from '../workers/strategy.worker'
@@ -13,6 +14,7 @@ interface UseStrategyWorkerReturn {
 		config: SimulationConfig,
 		prices: MarketPrices,
 		numSimulations: number,
+		resourceLimits: ResourceLimits,
 	) => Promise<RestorationResult[]>
 	restorationProgress: number
 	isRestorationRunning: boolean
@@ -22,6 +24,7 @@ interface UseStrategyWorkerReturn {
 		config: SimulationConfig,
 		prices: MarketPrices,
 		numSimulations: number,
+		resourceLimits: ResourceLimits,
 	) => Promise<HeptaOktaResult[]>
 	heptaOktaProgress: number
 	isHeptaOktaRunning: boolean
@@ -153,6 +156,7 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 			config: SimulationConfig,
 			prices: MarketPrices,
 			numSimulations: number,
+			resourceLimits: ResourceLimits,
 		): Promise<RestorationResult[]> => {
 			return new Promise((resolve, reject) => {
 				if (!workerRef.current) {
@@ -186,6 +190,7 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 					config,
 					prices,
 					numSimulations,
+					resourceLimits,
 				} satisfies StrategyRequest)
 			})
 		},
@@ -197,6 +202,7 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 			config: SimulationConfig,
 			prices: MarketPrices,
 			numSimulations: number,
+			resourceLimits: ResourceLimits,
 		): Promise<HeptaOktaResult[]> => {
 			return new Promise((resolve, reject) => {
 				if (!workerRef.current) {
@@ -230,6 +236,7 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 					config,
 					prices,
 					numSimulations,
+					resourceLimits,
 				} satisfies StrategyRequest)
 			})
 		},

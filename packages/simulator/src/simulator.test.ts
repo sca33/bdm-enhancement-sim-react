@@ -349,35 +349,42 @@ describe('AwakeningEngine', () => {
 			expect(result.valks100Used).toBe(0)
 		})
 
-		it('stacks multiple Valks buffs', () => {
+		it('uses highest priority Valks when multiple qualify (100 > 50 > 10)', () => {
 			const config: SimulationConfig = {
 				...baseConfig,
-				startLevel: 4,
-				targetLevel: 5,
+				startLevel: 0,
+				targetLevel: 6,
 				valks10From: 1,
 				valks50From: 3,
 				valks100From: 5,
-				restorationFrom: 0,
+				restorationFrom: 0, // No restoration - allow natural level progression
 			}
 
 			const engine = new AwakeningEngine(config, 42)
 			const result = engine.runFullSimulation(true)
 
-			// Level 5 enhancement should use all three Valks (stacked)
-			expect(result.valks10Used).toBeGreaterThan(0)
-			expect(result.valks50Used).toBeGreaterThan(0)
-			expect(result.valks100Used).toBeGreaterThan(0)
-
-			// Verify from steps - should show stacked Valks
+			// Verify step-by-step that at each level, the correct priority valks is used
+			// valks100From: 5 means nextLevel >= 5 uses valks100
+			// valks50From: 3 means nextLevel 3-4 uses valks50
+			// valks10From: 1 means nextLevel 1-2 uses valks10
 			const steps = result.steps || []
 			for (const step of steps) {
-				if (step.startingLevel === 4) {
-					expect(step.valksUsed).toBe('10+50+100')
+				if (step.isHeptaOkta) continue // Skip hepta/okta steps
+				const nextLevel = step.startingLevel + 1
+				if (nextLevel >= 5) {
+					expect(step.valksUsed).toBe('100')
+				} else if (nextLevel >= 3) {
+					expect(step.valksUsed).toBe('50')
+				} else if (nextLevel >= 1) {
+					expect(step.valksUsed).toBe('10')
 				}
 			}
+
+			// At least one of each valks type should be used given the level range
+			expect(result.valks100Used).toBeGreaterThan(0)
 		})
 
-		it('stacks two Valks when only two are active', () => {
+		it('uses Valks 50 when Valks 100 not configured', () => {
 			const config: SimulationConfig = {
 				...baseConfig,
 				startLevel: 4,
@@ -385,22 +392,22 @@ describe('AwakeningEngine', () => {
 				valks10From: 1,
 				valks50From: 5,
 				valks100From: 0,
-				restorationFrom: 0,
+				restorationFrom: 5, // Enable restoration to prevent drops below level 4
 			}
 
 			const engine = new AwakeningEngine(config, 42)
 			const result = engine.runFullSimulation(true)
 
-			// Level 5 should use +10% and +50%
-			expect(result.valks10Used).toBeGreaterThan(0)
+			// Level 5 should use only +50% (higher priority than +10%)
+			// With restoration enabled, we stay at level 4+ so valks10 is never used alone
 			expect(result.valks50Used).toBeGreaterThan(0)
 			expect(result.valks100Used).toBe(0)
 
-			// Verify from steps
+			// Verify from steps - level 4->5 attempts should use valks50
 			const steps = result.steps || []
 			for (const step of steps) {
-				if (step.startingLevel === 4) {
-					expect(step.valksUsed).toBe('10+50')
+				if (step.startingLevel === 4 && !step.isHeptaOkta) {
+					expect(step.valksUsed).toBe('50')
 				}
 			}
 		})
@@ -552,8 +559,8 @@ describe('AwakeningEngine', () => {
 		})
 
 		it('restoration from +VI to +IX costs significantly more without valks', () => {
-			// This test validates that without valks (as strategy finder should use),
-			// costs are significantly higher than with valks enabled
+			// This test validates that valks significantly reduce costs
+			// Strategy finder uses valks since they're free and reflect realistic gameplay
 			const configNoValks: SimulationConfig = {
 				...DEFAULT_CONFIG,
 				startLevel: 0,
@@ -599,10 +606,9 @@ describe('AwakeningEngine', () => {
 			const noValksMedian = noValksSilver[Math.floor(numSims * 0.5)]
 			const withValksMedian = withValksSilver[Math.floor(numSims * 0.5)]
 
-			// Without valks should cost significantly more (roughly 1.5x-2x)
-			// This is the core bug that was fixed - the old implementation accidentally
-			// used valks which reduced costs by about half
-			expect(noValksMedian).toBeGreaterThan(withValksMedian * 1.3)
+			// Without valks should cost significantly more (roughly 3-5x)
+			// Valks are free (price=0) but boost success rates significantly
+			expect(noValksMedian).toBeGreaterThan(withValksMedian * 3)
 
 			// Verify both are positive and reasonable
 			expect(noValksMedian).toBeGreaterThan(0)
@@ -704,6 +710,37 @@ describe('AwakeningEngine', () => {
 			// P50 < P90 < worst
 			expect(p50).toBeLessThan(p90)
 			expect(p90).toBeLessThan(worst)
+		})
+
+		it('P50 cost with valks should be around 1.5-2T for +IX', () => {
+			// Test WITH Valks (realistic gameplay scenario)
+			const config: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 1,
+				valks50From: 3,
+				valks100From: 5,
+			}
+
+			const numSims = 1000
+			const results: number[] = []
+
+			for (let seed = 0; seed < numSims; seed++) {
+				const engine = new AwakeningEngine(config, seed)
+				const [, , silver] = engine.runFast()
+				results.push(silver)
+			}
+			results.sort((a, b) => a - b)
+
+			const p50 = results[Math.floor(numSims * 0.5)]
+
+			// P50 should be around 1.5-2T with valks (based on expected gameplay)
+			expect(p50).toBeGreaterThan(1e12) // > 1T
+			expect(p50).toBeLessThan(3e12) // < 3T
 		})
 
 		it('simulation is deterministic with seed', () => {
