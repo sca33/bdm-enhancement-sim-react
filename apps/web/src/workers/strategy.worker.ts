@@ -25,6 +25,115 @@ export type ResourceLimits = {
 	valks100Unlimited: boolean
 }
 
+// Distribution data types for visualization
+export type HistogramBucket = {
+	min: number // Lower bound (silver)
+	max: number // Upper bound (silver)
+	count: number // Number of simulations in bucket
+	cumulative: number // Cumulative count for CDF
+	percentage: number // Percentage of total
+	cumulativePercentage: number // Cumulative percentage for CDF
+}
+
+export type DistributionData = {
+	buckets: HistogramBucket[]
+	percentiles: {
+		p10: number
+		p25: number
+		p50: number
+		p75: number
+		p90: number
+		p95: number
+	}
+	stats: {
+		min: number
+		max: number
+		mean: number
+	}
+	totalCount: number
+}
+
+/**
+ * Generate histogram buckets from sorted silver values
+ */
+function generateDistribution(
+	silverResults: Float64Array,
+	sortedIndices: number[],
+	numBuckets: number = 30,
+): DistributionData {
+	const count = sortedIndices.length
+	if (count === 0) {
+		return {
+			buckets: [],
+			percentiles: { p10: 0, p25: 0, p50: 0, p75: 0, p90: 0, p95: 0 },
+			stats: { min: 0, max: 0, mean: 0 },
+			totalCount: 0,
+		}
+	}
+
+	const minVal = silverResults[sortedIndices[0]]
+	const maxVal = silverResults[sortedIndices[count - 1]]
+
+	// Calculate mean
+	let sum = 0
+	for (const idx of sortedIndices) {
+		sum += silverResults[idx]
+	}
+	const mean = sum / count
+
+	// Handle edge case where all values are the same
+	const range = maxVal - minVal
+	const bucketWidth = range === 0 ? 1 : range / numBuckets
+
+	// Initialize buckets
+	const bucketCounts = new Array(numBuckets).fill(0)
+
+	// Fill buckets
+	for (const idx of sortedIndices) {
+		const value = silverResults[idx]
+		let bucketIdx = Math.floor((value - minVal) / bucketWidth)
+		// Ensure the max value goes into the last bucket
+		if (bucketIdx >= numBuckets) bucketIdx = numBuckets - 1
+		bucketCounts[bucketIdx]++
+	}
+
+	// Build bucket objects with cumulative data
+	let cumulative = 0
+	const buckets: HistogramBucket[] = bucketCounts.map((c, i) => {
+		cumulative += c
+		return {
+			min: minVal + i * bucketWidth,
+			max: minVal + (i + 1) * bucketWidth,
+			count: c,
+			cumulative,
+			percentage: (c / count) * 100,
+			cumulativePercentage: (cumulative / count) * 100,
+		}
+	})
+
+	// Calculate percentiles
+	const p10Idx = Math.min(Math.floor(count * 0.1), count - 1)
+	const p25Idx = Math.min(Math.floor(count * 0.25), count - 1)
+	const p50Idx = Math.min(Math.floor(count * 0.5), count - 1)
+	const p75Idx = Math.min(Math.floor(count * 0.75), count - 1)
+	const p90Idx = Math.min(Math.floor(count * 0.9), count - 1)
+	const p95Idx = Math.min(Math.floor(count * 0.95), count - 1)
+
+	return {
+		buckets,
+		percentiles: {
+			p10: silverResults[sortedIndices[p10Idx]],
+			p25: silverResults[sortedIndices[p25Idx]],
+			p50: silverResults[sortedIndices[p50Idx]],
+			p75: silverResults[sortedIndices[p75Idx]],
+			p90: silverResults[sortedIndices[p90Idx]],
+			p95: silverResults[sortedIndices[p95Idx]],
+		},
+		stats: { min: minVal, max: maxVal, mean },
+		totalCount: count,
+	}
+}
+
 // Request types
 export type StrategyRequest =
 	| {
@@ -52,6 +161,8 @@ export type RestorationResult = {
 	p50: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
 	p90: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
 	worst: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+	distribution: DistributionData // Distribution of successful runs
+	failedDistribution?: DistributionData // Distribution of failed runs (when resource-limited)
 }
 
 export type HeptaOktaResult = {
@@ -62,6 +173,8 @@ export type HeptaOktaResult = {
 	p50: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
 	p90: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
 	worst: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
+	distribution: DistributionData
+	failedDistribution?: DistributionData
 }
 
 export type StrategyResponse =
@@ -183,12 +296,16 @@ function runRestorationStrategy(
 
 		// Sort indices by silver for percentile calculation (only successful runs)
 		const successfulIndices: number[] = []
+		const failedIndices: number[] = []
 		for (let i = 0; i < numSims; i++) {
 			if (successResults[i] === 1) {
 				successfulIndices.push(i)
+			} else {
+				failedIndices.push(i)
 			}
 		}
 		successfulIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
 
 		// If no successful runs, use all runs sorted by silver
 		const indices =
@@ -203,6 +320,11 @@ function runRestorationStrategy(
 		const p50Idx = Math.min(Math.floor(numSuccessful * 0.5), numSuccessful - 1)
 		const p90Idx = Math.min(Math.floor(numSuccessful * 0.9), numSuccessful - 1)
 		const worstIdx = numSuccessful - 1
+
+		// Generate distribution data
+		const distribution = generateDistribution(silverResults, successfulIndices)
+		const failedDistribution =
+			failedIndices.length > 0 ? generateDistribution(silverResults, failedIndices) : undefined
 
 		results.push({
 			restorationFrom: restFrom,
@@ -232,6 +354,8 @@ function runRestorationStrategy(
 				valks50: valks50Results[indices[worstIdx]],
 				valks100: valks100Results[indices[worstIdx]],
 			},
+			distribution,
+			failedDistribution,
 		})
 	}
 
@@ -351,12 +475,16 @@ function runHeptaOktaStrategy(
 
 		// Sort indices by silver for percentile calculation (only successful runs)
 		const successfulIndices: number[] = []
+		const failedIndices: number[] = []
 		for (let i = 0; i < numSims; i++) {
 			if (successResults[i] === 1) {
 				successfulIndices.push(i)
+			} else {
+				failedIndices.push(i)
 			}
 		}
 		successfulIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
 
 		const indices =
 			successfulIndices.length > 0
@@ -370,6 +498,11 @@ function runHeptaOktaStrategy(
 		const p50Idx = Math.min(Math.floor(numSuccessful * 0.5), numSuccessful - 1)
 		const p90Idx = Math.min(Math.floor(numSuccessful * 0.9), numSuccessful - 1)
 		const worstIdx = numSuccessful - 1
+
+		// Generate distribution data
+		const distribution = generateDistribution(silverResults, successfulIndices)
+		const failedDistribution =
+			failedIndices.length > 0 ? generateDistribution(silverResults, failedIndices) : undefined
 
 		results.push({
 			useHepta,
@@ -403,6 +536,8 @@ function runHeptaOktaStrategy(
 				valks50: valks50Results[indices[worstIdx]],
 				valks100: valks100Results[indices[worstIdx]],
 			},
+			distribution,
+			failedDistribution,
 		})
 	}
 

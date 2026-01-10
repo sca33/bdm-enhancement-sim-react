@@ -5,9 +5,10 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
-import { ArrowLeft, Loader2, Play } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { DistributionHistogram } from '@/components/distribution-graph'
 import {
 	Button,
 	Card,
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { useStrategyWorker } from '@/hooks/use-strategy-worker'
-import type { ResourceLimits } from '@/workers/strategy.worker'
+import type { DistributionData, ResourceLimits } from '@/workers/strategy.worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 type Tab = 'restoration' | 'hepta-okta'
@@ -110,11 +111,27 @@ function RestorationStrategyTab({
 			p50: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
 			p90: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
 			worst: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+			distribution: DistributionData
+			failedDistribution?: DistributionData
 		}>
 	>([])
 
+	const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+
 	const updateResource = <K extends keyof ResourceLimits>(key: K, value: ResourceLimits[K]) => {
 		setResources((prev) => ({ ...prev, [key]: value }))
+	}
+
+	const toggleRowExpansion = (restorationFrom: number) => {
+		setExpandedRows((prev) => {
+			const next = new Set(prev)
+			if (next.has(restorationFrom)) {
+				next.delete(restorationFrom)
+			} else {
+				next.add(restorationFrom)
+			}
+			return next
+		})
 	}
 
 	// Check if all resources are unlimited
@@ -372,62 +389,82 @@ function RestorationStrategyTab({
 									{results.map((result, idx) => {
 										const isLowSuccess = result.successRate < 50
 										const isHighSuccess = result.successRate >= 90
+										const isExpanded = expandedRows.has(result.restorationFrom)
+										const colSpan = allUnlimited ? 10 : 11
 										return (
-											<tr
-												key={result.restorationFrom}
-												className={`border-b ${
-													idx === 0 && (allUnlimited || result.successRate >= 50)
-														? 'bg-success/10'
-														: isLowSuccess && !allUnlimited
-															? 'opacity-60'
-															: ''
-												}`}
-											>
-												<td className="px-3 py-2 font-medium">
-													<div className="flex items-center gap-2">
-														{result.label}
-														{idx === 0 && (allUnlimited || result.successRate >= 50) && (
-															<span className="text-success text-[10px] font-semibold">BEST</span>
-														)}
-													</div>
-												</td>
-												{!allUnlimited && (
-													<td
-														className={`px-2 py-2 text-center font-medium ${
-															isLowSuccess
-																? 'text-destructive'
-																: isHighSuccess
-																	? 'text-success'
-																	: 'text-warning'
-														}`}
-													>
-														{result.successRate.toFixed(0)}%
+											<>
+												<tr
+													key={result.restorationFrom}
+													onClick={() => toggleRowExpansion(result.restorationFrom)}
+													className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${
+														idx === 0 && (allUnlimited || result.successRate >= 50)
+															? 'bg-success/10'
+															: isLowSuccess && !allUnlimited
+																? 'opacity-60'
+																: ''
+													}`}
+												>
+													<td className="px-3 py-2 font-medium">
+														<div className="flex items-center gap-2">
+															{isExpanded ? (
+																<ChevronDown className="w-3 h-3 text-muted-foreground" />
+															) : (
+																<ChevronRight className="w-3 h-3 text-muted-foreground" />
+															)}
+															{result.label}
+															{idx === 0 && (allUnlimited || result.successRate >= 50) && (
+																<span className="text-success text-[10px] font-semibold">BEST</span>
+															)}
+														</div>
 													</td>
+													{!allUnlimited && (
+														<td
+															className={`px-2 py-2 text-center font-medium ${
+																isLowSuccess
+																	? 'text-destructive'
+																	: isHighSuccess
+																		? 'text-success'
+																		: 'text-warning'
+															}`}
+														>
+															{result.successRate.toFixed(0)}%
+														</td>
+													)}
+													<td className="px-3 py-2 text-right border-l">
+														{formatSilver(result.p50.silver)}
+													</td>
+													<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
+													<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
+													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+														{formatSilver(result.p90.silver)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.p90.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.p90.scrolls)}
+													</td>
+													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+														{formatSilver(result.worst.silver)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.worst.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.worst.scrolls)}
+													</td>
+												</tr>
+												{isExpanded && (
+													<tr key={`${result.restorationFrom}-expanded`} className="border-b bg-muted/20">
+														<td colSpan={colSpan} className="px-4 py-3">
+															<DistributionHistogram
+																distribution={result.distribution}
+																failedDistribution={result.failedDistribution}
+															/>
+														</td>
+													</tr>
 												)}
-												<td className="px-3 py-2 text-right border-l">
-													{formatSilver(result.p50.silver)}
-												</td>
-												<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-												<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
-												<td className="px-3 py-2 text-right border-l text-muted-foreground">
-													{formatSilver(result.p90.silver)}
-												</td>
-												<td className="px-3 py-2 text-right text-muted-foreground">
-													{formatNumber(result.p90.crystals)}
-												</td>
-												<td className="px-3 py-2 text-right text-muted-foreground">
-													{formatNumber(result.p90.scrolls)}
-												</td>
-												<td className="px-3 py-2 text-right border-l text-muted-foreground">
-													{formatSilver(result.worst.silver)}
-												</td>
-												<td className="px-3 py-2 text-right text-muted-foreground">
-													{formatNumber(result.worst.crystals)}
-												</td>
-												<td className="px-3 py-2 text-right text-muted-foreground">
-													{formatNumber(result.worst.scrolls)}
-												</td>
-											</tr>
+											</>
 										)
 									})}
 								</tbody>
@@ -538,8 +575,24 @@ function HeptaOktaStrategyTab({
 			p50: { crystals: number; scrolls: number; silver: number; exquisite: number }
 			p90: { crystals: number; scrolls: number; silver: number; exquisite: number }
 			worst: { crystals: number; scrolls: number; silver: number; exquisite: number }
+			distribution: DistributionData
+			failedDistribution?: DistributionData
 		}>
 	>([])
+
+	const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+
+	const toggleRowExpansion = (label: string) => {
+		setExpandedRows((prev) => {
+			const next = new Set(prev)
+			if (next.has(label)) {
+				next.delete(label)
+			} else {
+				next.add(label)
+			}
+			return next
+		})
+	}
 
 	// Default unlimited resources for legacy hepta/okta analysis
 	const defaultResources: ResourceLimits = {
@@ -699,47 +752,70 @@ function HeptaOktaStrategyTab({
 									</tr>
 								</thead>
 								<tbody>
-									{results.map((result, idx) => (
-										<tr
-											key={result.label}
-											className={`border-b ${idx === 0 ? 'bg-success/10' : ''}`}
-										>
-											<td className="px-3 py-2 font-medium">
-												{result.label}
-												{idx === 0 && <span className="ml-2 text-success text-[10px]">BEST</span>}
-											</td>
-											<td className="px-3 py-2 text-right border-l">
-												{formatSilver(result.p50.silver)}
-											</td>
-											<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-											<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
-											<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
-											<td className="px-3 py-2 text-right border-l text-muted-foreground">
-												{formatSilver(result.p90.silver)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.p90.crystals)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.p90.scrolls)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.p90.exquisite)}
-											</td>
-											<td className="px-3 py-2 text-right border-l text-muted-foreground">
-												{formatSilver(result.worst.silver)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.worst.crystals)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.worst.scrolls)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.worst.exquisite)}
-											</td>
-										</tr>
-									))}
+									{results.map((result, idx) => {
+										const isExpanded = expandedRows.has(result.label)
+										return (
+											<>
+												<tr
+													key={result.label}
+													onClick={() => toggleRowExpansion(result.label)}
+													className={`border-b cursor-pointer hover:bg-muted/30 transition-colors ${idx === 0 ? 'bg-success/10' : ''}`}
+												>
+													<td className="px-3 py-2 font-medium">
+														<div className="flex items-center gap-2">
+															{isExpanded ? (
+																<ChevronDown className="w-3 h-3 text-muted-foreground" />
+															) : (
+																<ChevronRight className="w-3 h-3 text-muted-foreground" />
+															)}
+															{result.label}
+															{idx === 0 && <span className="text-success text-[10px]">BEST</span>}
+														</div>
+													</td>
+													<td className="px-3 py-2 text-right border-l">
+														{formatSilver(result.p50.silver)}
+													</td>
+													<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
+													<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
+													<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
+													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+														{formatSilver(result.p90.silver)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.p90.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.p90.scrolls)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.p90.exquisite)}
+													</td>
+													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+														{formatSilver(result.worst.silver)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.worst.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.worst.scrolls)}
+													</td>
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatNumber(result.worst.exquisite)}
+													</td>
+												</tr>
+												{isExpanded && (
+													<tr key={`${result.label}-expanded`} className="border-b bg-muted/20">
+														<td colSpan={13} className="px-4 py-3">
+															<DistributionHistogram
+																distribution={result.distribution}
+																failedDistribution={result.failedDistribution}
+															/>
+														</td>
+													</tr>
+												)}
+											</>
+										)
+									})}
 								</tbody>
 							</table>
 						</div>
