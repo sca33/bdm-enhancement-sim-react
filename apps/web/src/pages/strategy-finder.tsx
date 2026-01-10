@@ -106,11 +106,13 @@ function RestorationStrategyTab({
 		crystalsUnlimited: true,
 		scrolls: 100000,
 		scrollsUnlimited: true,
-		valks10: 100,
+		// Valks are not used in restoration strategy analysis
+		// (disabled in worker for accurate cost comparison)
+		valks10: 0,
 		valks10Unlimited: true,
-		valks50: 50,
+		valks50: 0,
 		valks50Unlimited: true,
-		valks100: 20,
+		valks100: 0,
 		valks100Unlimited: true,
 	})
 
@@ -190,12 +192,14 @@ function RestorationStrategyTab({
 		return issues.join(', ')
 	}
 
-	// Ensure startLevel < targetLevel
+	// Ensure startLevel < targetLevel when target changes
 	useEffect(() => {
 		if (startLevel >= targetLevel) {
 			setStartLevel(Math.max(0, targetLevel - 1))
 		}
-	}, [targetLevel, startLevel])
+		// Only react to targetLevel changes - startLevel adjustment is a side effect
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [targetLevel])
 
 	return (
 		<div className="space-y-4">
@@ -279,33 +283,10 @@ function RestorationStrategyTab({
 						onUnlimitedChange={(v) => updateResource('scrollsUnlimited', v)}
 					/>
 
-					{/* Valks */}
-					<div className="grid grid-cols-3 gap-2">
-						<ResourceInput
-							label="Valks +10%"
-							value={resources.valks10}
-							unlimited={resources.valks10Unlimited}
-							onChange={(v) => updateResource('valks10', v)}
-							onUnlimitedChange={(v) => updateResource('valks10Unlimited', v)}
-							compact
-						/>
-						<ResourceInput
-							label="Valks +50%"
-							value={resources.valks50}
-							unlimited={resources.valks50Unlimited}
-							onChange={(v) => updateResource('valks50', v)}
-							onUnlimitedChange={(v) => updateResource('valks50Unlimited', v)}
-							compact
-						/>
-						<ResourceInput
-							label="Valks +100%"
-							value={resources.valks100}
-							unlimited={resources.valks100Unlimited}
-							onChange={(v) => updateResource('valks100', v)}
-							onUnlimitedChange={(v) => updateResource('valks100Unlimited', v)}
-							compact
-						/>
-					</div>
+					{/* Note about Valks */}
+					<p className="text-[10px] text-muted-foreground italic">
+						Note: Valks bonuses are excluded from strategy analysis for accurate cost comparison.
+					</p>
 				</CardContent>
 			</Card>
 
