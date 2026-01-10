@@ -410,9 +410,19 @@ const LogEntry = memo(function LogEntry({ step }: { step: StepResult }) {
 
 		if (step.pathComplete) {
 			return (
-				<div className="text-accent font-semibold">
-					═══ {step.pathName} COMPLETE! {ROMAN_NUMERALS[step.startingLevel]} →{' '}
-					{ROMAN_NUMERALS[step.endingLevel]} ═══
+				<div>
+					<div>
+						<span className="text-accent">{step.pathName}</span> ({maxSubs}/{maxSubs}):{' '}
+						{step.anvilTriggered ? (
+							<span className="text-warning font-semibold">ANVIL SUCCESS!</span>
+						) : (
+							<span className="text-success">SUB SUCCESS</span>
+						)}
+					</div>
+					<div className="text-accent font-semibold">
+						═══ {step.pathName} COMPLETE! {ROMAN_NUMERALS[step.startingLevel]} →{' '}
+						{ROMAN_NUMERALS[step.endingLevel]} ═══
+					</div>
 				</div>
 			)
 		}
