@@ -53,6 +53,12 @@ export type DistributionData = {
 	totalCount: number
 }
 
+// Survival curve data point for visualizing success probability at different budget levels
+export type SurvivalCurvePoint = {
+	silver: number
+	successProbability: number
+}
+
 /**
  * Generate histogram buckets from sorted silver values
  */
@@ -134,6 +140,56 @@ function generateDistribution(
 	}
 }
 
+/**
+ * Generate survival curve data showing probability of success at different budget levels.
+ * Uses pre-sorted indices for efficiency.
+ */
+function generateSurvivalCurve(
+	silverResults: Float64Array,
+	successResults: Uint8Array,
+	sortedIndices: number[], // Pre-sorted by silver cost
+	numPoints: number = 50,
+): SurvivalCurvePoint[] {
+	const numSims = sortedIndices.length
+	if (numSims === 0) return []
+
+	const minSilver = silverResults[sortedIndices[0]]
+	const maxSilver = silverResults[sortedIndices[numSims - 1]]
+
+	// Handle edge case where all values are the same
+	if (minSilver === maxSilver) {
+		let successCount = 0
+		for (let i = 0; i < numSims; i++) {
+			successCount += successResults[i]
+		}
+		return [{ silver: minSilver, successProbability: (successCount / numSims) * 100 }]
+	}
+
+	const step = (maxSilver - minSilver) / (numPoints - 1)
+	const curve: SurvivalCurvePoint[] = []
+
+	// Build cumulative success count using sorted order (O(n) instead of O(n*numPoints))
+	let cumulativeSuccess = 0
+	let sortedIdx = 0
+
+	for (let i = 0; i < numPoints; i++) {
+		const budgetLevel = minSilver + step * i
+
+		// Advance through sorted indices until we pass the budget level
+		while (sortedIdx < numSims && silverResults[sortedIndices[sortedIdx]] <= budgetLevel) {
+			cumulativeSuccess += successResults[sortedIndices[sortedIdx]]
+			sortedIdx++
+		}
+
+		curve.push({
+			silver: budgetLevel,
+			successProbability: (cumulativeSuccess / numSims) * 100,
+		})
+	}
+
+	return curve
+}
+
 // Request types
 export type StrategyRequest =
 	| {
@@ -158,11 +214,38 @@ export type RestorationResult = {
 	restorationFrom: number
 	label: string
 	successRate: number // % of simulations that reached target
-	p50: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
-	p90: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
-	worst: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+	p50: {
+		crystals: number
+		scrolls: number
+		silver: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
+	p90: {
+		crystals: number
+		scrolls: number
+		silver: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
+	worst: {
+		crystals: number
+		scrolls: number
+		silver: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
 	distribution: DistributionData // Distribution of successful runs
 	failedDistribution?: DistributionData // Distribution of failed runs (when resource-limited)
+	// Risk-adjusted metrics for limited resources
+	expectedCostPerSuccess: number // Mean all runs / success rate - true expected spending
+	expectedAttempts: number // 1 / (success rate / 100) - expected number of tries
+	meanCostAllRuns: number // Mean silver across ALL runs (successful + failed)
+	meanCostSuccessful: number // Mean silver of successful runs only
+	survivalCurve?: SurvivalCurvePoint[] // Success probability at different budget levels
 }
 
 export type HeptaOktaResult = {
@@ -170,11 +253,41 @@ export type HeptaOktaResult = {
 	useOkta: boolean
 	label: string
 	successRate: number
-	p50: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
-	p90: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
-	worst: { crystals: number; scrolls: number; silver: number; exquisite: number; valks10: number; valks50: number; valks100: number }
+	p50: {
+		crystals: number
+		scrolls: number
+		silver: number
+		exquisite: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
+	p90: {
+		crystals: number
+		scrolls: number
+		silver: number
+		exquisite: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
+	worst: {
+		crystals: number
+		scrolls: number
+		silver: number
+		exquisite: number
+		valks10: number
+		valks50: number
+		valks100: number
+	}
 	distribution: DistributionData
 	failedDistribution?: DistributionData
+	// Risk-adjusted metrics for limited resources
+	expectedCostPerSuccess: number
+	expectedAttempts: number
+	meanCostAllRuns: number
+	meanCostSuccessful: number
+	survivalCurve?: SurvivalCurvePoint[]
 }
 
 export type StrategyResponse =
@@ -294,35 +407,55 @@ function runRestorationStrategy(
 		}
 		const successRate = (successCount / numSims) * 100
 
-		// Sort indices by silver for percentile calculation (only successful runs)
-		const successfulIndices: number[] = []
+		// Calculate mean of ALL runs (successful + failed) for risk-adjusted metrics
+		let totalSilver = 0
+		for (let i = 0; i < numSims; i++) {
+			totalSilver += silverResults[i]
+		}
+		const meanCostAllRuns = totalSilver / numSims
+
+		// Sort ALL indices by silver once - used for percentiles, distribution, and survival curve
+		const allIndices = Array.from({ length: numSims }, (_, i) => i).sort(
+			(a, b) => silverResults[a] - silverResults[b],
+		)
+
+		// Separate successful and failed indices (need sorting only for failed distribution)
 		const failedIndices: number[] = []
+		let successSilver = 0
 		for (let i = 0; i < numSims; i++) {
 			if (successResults[i] === 1) {
-				successfulIndices.push(i)
+				successSilver += silverResults[i]
 			} else {
 				failedIndices.push(i)
 			}
 		}
-		successfulIndices.sort((a, b) => silverResults[a] - silverResults[b])
-		failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		const meanCostSuccessful = successCount > 0 ? successSilver / successCount : 0
 
-		// If no successful runs, use all runs sorted by silver
-		const indices =
-			successfulIndices.length > 0
-				? successfulIndices
-				: Array.from({ length: numSims }, (_, i) => i).sort(
-						(a, b) => silverResults[a] - silverResults[b],
-					)
+		// Only sort failed indices if we need the failed distribution
+		if (failedIndices.length > 0) {
+			failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		}
 
-		// Calculate percentile indices with bounds check
-		const numSuccessful = indices.length
-		const p50Idx = Math.min(Math.floor(numSuccessful * 0.5), numSuccessful - 1)
-		const p90Idx = Math.min(Math.floor(numSuccessful * 0.9), numSuccessful - 1)
-		const worstIdx = numSuccessful - 1
+		// Expected cost per success = total expected spending / probability of success
+		const expectedCostPerSuccess =
+			successRate > 0 ? meanCostAllRuns / (successRate / 100) : Number.POSITIVE_INFINITY
 
-		// Generate distribution data
-		const distribution = generateDistribution(silverResults, successfulIndices)
+		// Expected number of attempts to succeed
+		const expectedAttempts = successRate > 0 ? 100 / successRate : Number.POSITIVE_INFINITY
+
+		// Calculate percentile indices using ALL runs
+		const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+		const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+		const worstIdx = numSims - 1
+
+		// Generate survival curve using pre-sorted indices (only when success < 100%)
+		const survivalCurve =
+			successRate < 100
+				? generateSurvivalCurve(silverResults, successResults, allIndices)
+				: undefined
+
+		// Generate unified distribution data (all runs together)
+		const distribution = generateDistribution(silverResults, allIndices)
 		const failedDistribution =
 			failedIndices.length > 0 ? generateDistribution(silverResults, failedIndices) : undefined
 
@@ -331,31 +464,37 @@ function runRestorationStrategy(
 			label: `+${ROMAN_NUMERALS[restFrom]}`,
 			successRate,
 			p50: {
-				crystals: crystalResults[indices[p50Idx]],
-				scrolls: scrollResults[indices[p50Idx]],
-				silver: silverResults[indices[p50Idx]],
-				valks10: valks10Results[indices[p50Idx]],
-				valks50: valks50Results[indices[p50Idx]],
-				valks100: valks100Results[indices[p50Idx]],
+				crystals: crystalResults[allIndices[p50Idx]],
+				scrolls: scrollResults[allIndices[p50Idx]],
+				silver: silverResults[allIndices[p50Idx]],
+				valks10: valks10Results[allIndices[p50Idx]],
+				valks50: valks50Results[allIndices[p50Idx]],
+				valks100: valks100Results[allIndices[p50Idx]],
 			},
 			p90: {
-				crystals: crystalResults[indices[p90Idx]],
-				scrolls: scrollResults[indices[p90Idx]],
-				silver: silverResults[indices[p90Idx]],
-				valks10: valks10Results[indices[p90Idx]],
-				valks50: valks50Results[indices[p90Idx]],
-				valks100: valks100Results[indices[p90Idx]],
+				crystals: crystalResults[allIndices[p90Idx]],
+				scrolls: scrollResults[allIndices[p90Idx]],
+				silver: silverResults[allIndices[p90Idx]],
+				valks10: valks10Results[allIndices[p90Idx]],
+				valks50: valks50Results[allIndices[p90Idx]],
+				valks100: valks100Results[allIndices[p90Idx]],
 			},
 			worst: {
-				crystals: crystalResults[indices[worstIdx]],
-				scrolls: scrollResults[indices[worstIdx]],
-				silver: silverResults[indices[worstIdx]],
-				valks10: valks10Results[indices[worstIdx]],
-				valks50: valks50Results[indices[worstIdx]],
-				valks100: valks100Results[indices[worstIdx]],
+				crystals: crystalResults[allIndices[worstIdx]],
+				scrolls: scrollResults[allIndices[worstIdx]],
+				silver: silverResults[allIndices[worstIdx]],
+				valks10: valks10Results[allIndices[worstIdx]],
+				valks50: valks50Results[allIndices[worstIdx]],
+				valks100: valks100Results[allIndices[worstIdx]],
 			},
 			distribution,
 			failedDistribution,
+			// Risk-adjusted metrics
+			expectedCostPerSuccess,
+			expectedAttempts,
+			meanCostAllRuns,
+			meanCostSuccessful,
+			survivalCurve,
 		})
 	}
 
@@ -473,34 +612,55 @@ function runHeptaOktaStrategy(
 		}
 		const successRate = (successCount / numSims) * 100
 
-		// Sort indices by silver for percentile calculation (only successful runs)
-		const successfulIndices: number[] = []
+		// Calculate mean of ALL runs (successful + failed) for risk-adjusted metrics
+		let totalSilver = 0
+		for (let i = 0; i < numSims; i++) {
+			totalSilver += silverResults[i]
+		}
+		const meanCostAllRuns = totalSilver / numSims
+
+		// Sort ALL indices by silver once - used for percentiles, distribution, and survival curve
+		const allIndices = Array.from({ length: numSims }, (_, i) => i).sort(
+			(a, b) => silverResults[a] - silverResults[b],
+		)
+
+		// Separate failed indices and calculate mean of successful runs
 		const failedIndices: number[] = []
+		let successSilver = 0
 		for (let i = 0; i < numSims; i++) {
 			if (successResults[i] === 1) {
-				successfulIndices.push(i)
+				successSilver += silverResults[i]
 			} else {
 				failedIndices.push(i)
 			}
 		}
-		successfulIndices.sort((a, b) => silverResults[a] - silverResults[b])
-		failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		const meanCostSuccessful = successCount > 0 ? successSilver / successCount : 0
 
-		const indices =
-			successfulIndices.length > 0
-				? successfulIndices
-				: Array.from({ length: numSims }, (_, i) => i).sort(
-						(a, b) => silverResults[a] - silverResults[b],
-					)
+		// Only sort failed indices if we need the failed distribution
+		if (failedIndices.length > 0) {
+			failedIndices.sort((a, b) => silverResults[a] - silverResults[b])
+		}
 
-		// Calculate percentile indices with bounds check
-		const numSuccessful = indices.length
-		const p50Idx = Math.min(Math.floor(numSuccessful * 0.5), numSuccessful - 1)
-		const p90Idx = Math.min(Math.floor(numSuccessful * 0.9), numSuccessful - 1)
-		const worstIdx = numSuccessful - 1
+		// Expected cost per success = total expected spending / probability of success
+		const expectedCostPerSuccess =
+			successRate > 0 ? meanCostAllRuns / (successRate / 100) : Number.POSITIVE_INFINITY
 
-		// Generate distribution data
-		const distribution = generateDistribution(silverResults, successfulIndices)
+		// Expected number of attempts to succeed
+		const expectedAttempts = successRate > 0 ? 100 / successRate : Number.POSITIVE_INFINITY
+
+		// Calculate percentile indices using ALL runs
+		const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+		const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+		const worstIdx = numSims - 1
+
+		// Generate survival curve using pre-sorted indices (only when success < 100%)
+		const survivalCurve =
+			successRate < 100
+				? generateSurvivalCurve(silverResults, successResults, allIndices)
+				: undefined
+
+		// Generate unified distribution data (all runs together)
+		const distribution = generateDistribution(silverResults, allIndices)
 		const failedDistribution =
 			failedIndices.length > 0 ? generateDistribution(silverResults, failedIndices) : undefined
 
@@ -510,34 +670,40 @@ function runHeptaOktaStrategy(
 			label,
 			successRate,
 			p50: {
-				crystals: crystalResults[indices[p50Idx]],
-				scrolls: scrollResults[indices[p50Idx]],
-				silver: silverResults[indices[p50Idx]],
-				exquisite: exquisiteResults[indices[p50Idx]],
-				valks10: valks10Results[indices[p50Idx]],
-				valks50: valks50Results[indices[p50Idx]],
-				valks100: valks100Results[indices[p50Idx]],
+				crystals: crystalResults[allIndices[p50Idx]],
+				scrolls: scrollResults[allIndices[p50Idx]],
+				silver: silverResults[allIndices[p50Idx]],
+				exquisite: exquisiteResults[allIndices[p50Idx]],
+				valks10: valks10Results[allIndices[p50Idx]],
+				valks50: valks50Results[allIndices[p50Idx]],
+				valks100: valks100Results[allIndices[p50Idx]],
 			},
 			p90: {
-				crystals: crystalResults[indices[p90Idx]],
-				scrolls: scrollResults[indices[p90Idx]],
-				silver: silverResults[indices[p90Idx]],
-				exquisite: exquisiteResults[indices[p90Idx]],
-				valks10: valks10Results[indices[p90Idx]],
-				valks50: valks50Results[indices[p90Idx]],
-				valks100: valks100Results[indices[p90Idx]],
+				crystals: crystalResults[allIndices[p90Idx]],
+				scrolls: scrollResults[allIndices[p90Idx]],
+				silver: silverResults[allIndices[p90Idx]],
+				exquisite: exquisiteResults[allIndices[p90Idx]],
+				valks10: valks10Results[allIndices[p90Idx]],
+				valks50: valks50Results[allIndices[p90Idx]],
+				valks100: valks100Results[allIndices[p90Idx]],
 			},
 			worst: {
-				crystals: crystalResults[indices[worstIdx]],
-				scrolls: scrollResults[indices[worstIdx]],
-				silver: silverResults[indices[worstIdx]],
-				exquisite: exquisiteResults[indices[worstIdx]],
-				valks10: valks10Results[indices[worstIdx]],
-				valks50: valks50Results[indices[worstIdx]],
-				valks100: valks100Results[indices[worstIdx]],
+				crystals: crystalResults[allIndices[worstIdx]],
+				scrolls: scrollResults[allIndices[worstIdx]],
+				silver: silverResults[allIndices[worstIdx]],
+				exquisite: exquisiteResults[allIndices[worstIdx]],
+				valks10: valks10Results[allIndices[worstIdx]],
+				valks50: valks50Results[allIndices[worstIdx]],
+				valks100: valks100Results[allIndices[worstIdx]],
 			},
 			distribution,
 			failedDistribution,
+			// Risk-adjusted metrics
+			expectedCostPerSuccess,
+			expectedAttempts,
+			meanCostAllRuns,
+			meanCostSuccessful,
+			survivalCurve,
 		})
 	}
 
