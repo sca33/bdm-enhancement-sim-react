@@ -66,7 +66,7 @@ export function StrategyFinderPage() {
 					variant={activeTab === 'hepta-okta' ? 'default' : 'ghost'}
 					size="sm"
 					onClick={() => setActiveTab('hepta-okta')}
-					className="text-muted-foreground"
+					className={activeTab === 'hepta-okta' ? '' : 'text-muted-foreground'}
 				>
 					Hepta/Okta (Legacy)
 				</Button>
@@ -469,21 +469,35 @@ function ResourceInput({
 	onUnlimitedChange: (v: boolean) => void
 	compact?: boolean
 }) {
+	const inputId = `resource-${label.replace(/\s+/g, '-').toLowerCase()}`
+
 	return (
 		<div className={compact ? '' : 'space-y-1'}>
 			<div className="flex items-center justify-between">
-				<label className="text-xs text-muted-foreground">{label}</label>
-				<label className="flex items-center gap-1 cursor-pointer">
-					<input
-						type="checkbox"
-						checked={unlimited}
-						onChange={(e) => onUnlimitedChange(e.target.checked)}
-						className="w-3 h-3 rounded"
-					/>
+				<label htmlFor={inputId} className="text-xs text-muted-foreground">
+					{label}
+				</label>
+				<label className="flex items-center gap-1.5 cursor-pointer select-none">
+					<button
+						type="button"
+						role="switch"
+						aria-checked={unlimited}
+						onClick={() => onUnlimitedChange(!unlimited)}
+						className={`relative w-7 h-4 rounded-full transition-colors ${
+							unlimited ? 'bg-primary' : 'bg-muted'
+						}`}
+					>
+						<span
+							className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-background transition-transform ${
+								unlimited ? 'translate-x-3' : 'translate-x-0'
+							}`}
+						/>
+					</button>
 					<span className="text-[10px] text-muted-foreground">Unlimited</span>
 				</label>
 			</div>
 			<input
+				id={inputId}
 				type="number"
 				value={value}
 				onChange={(e) => onChange(Number.parseInt(e.target.value, 10) || 0)}

@@ -183,6 +183,8 @@ function runHeptaOktaStrategy(
 		// Create fresh config for this strategy - completely isolated
 		// IMPORTANT: Disable valks to get accurate hepta/okta cost comparison
 		// Valks have 0 price but boost success rates, which would skew results
+		// NOTE: startLevel fixed at 0 for standardized hepta/okta cost comparison
+		// (unlike restoration strategy which respects user's starting level)
 		const simConfig: SimulationConfig = {
 			...config,
 			startLevel: 0,

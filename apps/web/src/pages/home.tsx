@@ -34,16 +34,16 @@ export function HomePage() {
 							{/* Action buttons - only show for implemented modules */}
 							{module.implemented && (
 								<div className="flex gap-2 pt-3">
-									<Button className="flex-1" onClick={() => setPage('awakening-config')}>
+									<Button className="flex-[2]" onClick={() => setPage('awakening-config')}>
 										<Play className="w-4 h-4 mr-2" />
 										Simulator
 									</Button>
 									<Button
 										variant="secondary"
-										size="default"
+										className="flex-1"
 										onClick={() => setPage('strategy-finder')}
 									>
-										<Search className="w-4 h-4 mr-1" />
+										<Search className="w-4 h-4 mr-2" />
 										Strategy
 									</Button>
 								</div>
