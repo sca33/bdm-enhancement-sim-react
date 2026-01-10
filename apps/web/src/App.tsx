@@ -1,13 +1,7 @@
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Settings } from '@/components/settings'
 import { useStore } from '@/hooks/use-store'
-import {
-	AwakeningConfigPage,
-	HeptaOktaStrategyPage,
-	HomePage,
-	RestorationStrategyPage,
-	SimulationPage,
-} from '@/pages'
+import { AwakeningConfigPage, HomePage, SimulationPage, StrategyFinderPage } from '@/pages'
 
 function AppContent() {
 	const currentPage = useStore((s) => s.currentPage)
@@ -20,10 +14,8 @@ function AppContent() {
 				return <AwakeningConfigPage />
 			case 'simulation':
 				return <SimulationPage />
-			case 'restoration-strategy':
-				return <RestorationStrategyPage />
-			case 'hepta-okta-strategy':
-				return <HeptaOktaStrategyPage />
+			case 'strategy-finder':
+				return <StrategyFinderPage />
 			default:
 				return <HomePage />
 		}
