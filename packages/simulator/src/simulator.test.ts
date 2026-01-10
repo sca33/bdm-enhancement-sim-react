@@ -493,6 +493,276 @@ describe('AwakeningEngine', () => {
 		})
 	})
 
+	describe('strategy finder simulation', () => {
+		/**
+		 * These tests validate the strategy finder simulation behavior.
+		 * The strategy finder was broken when DEFAULT_CONFIG with valks enabled
+		 * was used instead of disabling valks for fair comparison.
+		 */
+
+		it('valks settings significantly affect total costs', () => {
+			// This test verifies that valks settings matter for cost calculations
+			// With valks disabled (as strategy finder should use), costs are higher
+			const configNoValks: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 0,
+				valks50From: 0,
+				valks100From: 0,
+			}
+
+			const configWithValks: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 1,
+				valks50From: 3,
+				valks100From: 5,
+			}
+
+			// Run multiple simulations with same seeds to compare
+			let noValksTotalSilver = 0
+			let withValksTotalSilver = 0
+			const numSims = 100
+
+			for (let seed = 0; seed < numSims; seed++) {
+				const engineNoValks = new AwakeningEngine(configNoValks, seed)
+				const [, , silverNoValks] = engineNoValks.runFast()
+				noValksTotalSilver += silverNoValks
+
+				const engineWithValks = new AwakeningEngine(configWithValks, seed)
+				const [, , silverWithValks] = engineWithValks.runFast()
+				withValksTotalSilver += silverWithValks
+			}
+
+			// Without valks should cost MORE than with valks
+			// (valks boost success rates at no additional cost in default prices)
+			expect(noValksTotalSilver).toBeGreaterThan(withValksTotalSilver)
+
+			// The difference should be significant (roughly 1.5x-2x more without valks)
+			const ratio = noValksTotalSilver / withValksTotalSilver
+			expect(ratio).toBeGreaterThan(1.3)
+		})
+
+		it('restoration from +VI to +IX costs significantly more without valks', () => {
+			// This test validates that without valks (as strategy finder should use),
+			// costs are significantly higher than with valks enabled
+			const configNoValks: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 0,
+				valks50From: 0,
+				valks100From: 0,
+			}
+
+			const configWithValks: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 1,
+				valks50From: 3,
+				valks100From: 5,
+			}
+
+			const noValksSilver: number[] = []
+			const withValksSilver: number[] = []
+			const numSims = 200
+
+			for (let seed = 0; seed < numSims; seed++) {
+				const engineNoValks = new AwakeningEngine(configNoValks, seed)
+				const [, , silver1] = engineNoValks.runFast()
+				noValksSilver.push(silver1)
+
+				const engineWithValks = new AwakeningEngine(configWithValks, seed)
+				const [, , silver2] = engineWithValks.runFast()
+				withValksSilver.push(silver2)
+			}
+
+			// Sort to get medians
+			noValksSilver.sort((a, b) => a - b)
+			withValksSilver.sort((a, b) => a - b)
+
+			const noValksMedian = noValksSilver[Math.floor(numSims * 0.5)]
+			const withValksMedian = withValksSilver[Math.floor(numSims * 0.5)]
+
+			// Without valks should cost significantly more (roughly 1.5x-2x)
+			// This is the core bug that was fixed - the old implementation accidentally
+			// used valks which reduced costs by about half
+			expect(noValksMedian).toBeGreaterThan(withValksMedian * 1.3)
+
+			// Verify both are positive and reasonable
+			expect(noValksMedian).toBeGreaterThan(0)
+			expect(withValksMedian).toBeGreaterThan(0)
+		})
+
+		it('valks10From=0 disables Valks +10%', () => {
+			const config: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 3,
+				valks10From: 0, // Disabled
+				valks50From: 0,
+				valks100From: 0,
+				restorationFrom: 0,
+			}
+
+			const engine = new AwakeningEngine(config, 42)
+			const result = engine.runFullSimulation(true)
+
+			// No valks should be used when valks*From is 0
+			expect(result.valks10Used).toBe(0)
+			expect(result.valks50Used).toBe(0)
+			expect(result.valks100Used).toBe(0)
+
+			// Check that no step reports valks usage
+			for (const step of result.steps || []) {
+				expect(step.valksUsed).toBeNull()
+			}
+		})
+
+		it('different restoration levels produce different costs', () => {
+			// Test that restoration from different levels produces meaningful cost differences
+			const numSims = 100
+			const results: Record<number, number[]> = {}
+
+			for (const restFrom of [4, 5, 6, 7]) {
+				const config: SimulationConfig = {
+					...DEFAULT_CONFIG,
+					startLevel: 0,
+					targetLevel: 9,
+					restorationFrom: restFrom,
+					useHepta: false,
+					useOkta: false,
+					valks10From: 0,
+					valks50From: 0,
+					valks100From: 0,
+				}
+
+				results[restFrom] = []
+				for (let seed = 0; seed < numSims; seed++) {
+					const engine = new AwakeningEngine(config, seed)
+					const [, , silver] = engine.runFast()
+					results[restFrom].push(silver)
+				}
+			}
+
+			// Calculate medians
+			const medians: Record<number, number> = {}
+			for (const [level, silverArr] of Object.entries(results)) {
+				const sorted = silverArr.slice().sort((a, b) => a - b)
+				medians[Number(level)] = sorted[Math.floor(numSims * 0.5)]
+			}
+
+			// Each level should produce different median costs
+			const medianValues = Object.values(medians)
+			const uniqueMedians = new Set(medianValues)
+			expect(uniqueMedians.size).toBe(4)
+		})
+
+		it('percentile calculation produces ordered results', () => {
+			const config: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 0,
+				valks50From: 0,
+				valks100From: 0,
+			}
+
+			const silverResults: number[] = []
+			const numSims = 200
+
+			for (let seed = 0; seed < numSims; seed++) {
+				const engine = new AwakeningEngine(config, seed)
+				const [, , silver] = engine.runFast()
+				silverResults.push(silver)
+			}
+
+			// Sort and get percentiles
+			silverResults.sort((a, b) => a - b)
+			const p50 = silverResults[Math.floor(numSims * 0.5)]
+			const p90 = silverResults[Math.floor(numSims * 0.9)]
+			const worst = silverResults[numSims - 1]
+
+			// P50 < P90 < worst
+			expect(p50).toBeLessThan(p90)
+			expect(p90).toBeLessThan(worst)
+		})
+
+		it('simulation is deterministic with seed', () => {
+			const config: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 0,
+				targetLevel: 9,
+				restorationFrom: 6,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 0,
+				valks50From: 0,
+				valks100From: 0,
+			}
+
+			// Same seed should produce identical results
+			for (let seed = 0; seed < 10; seed++) {
+				const engine1 = new AwakeningEngine(config, seed)
+				const [c1, s1, si1, e1] = engine1.runFast()
+
+				const engine2 = new AwakeningEngine(config, seed)
+				const [c2, s2, si2, e2] = engine2.runFast()
+
+				expect(c1).toBe(c2)
+				expect(s1).toBe(s2)
+				expect(si1).toBe(si2)
+				expect(e1).toBe(e2)
+			}
+		})
+
+		it('restoration scrolls are consumed only on failures', () => {
+			const config: SimulationConfig = {
+				...DEFAULT_CONFIG,
+				startLevel: 5,
+				targetLevel: 6,
+				restorationFrom: 5,
+				useHepta: false,
+				useOkta: false,
+				valks10From: 0,
+				valks50From: 0,
+				valks100From: 0,
+			}
+
+			const engine = new AwakeningEngine(config, 42)
+			const result = engine.runFullSimulation(true)
+
+			// Count failures where restoration was attempted
+			let restorationAttempts = 0
+			for (const step of result.steps || []) {
+				if (step.restorationAttempted) {
+					restorationAttempts++
+				}
+			}
+
+			// Each restoration attempt uses 200 scrolls
+			expect(result.scrolls).toBe(restorationAttempts * 200)
+		})
+	})
+
 	describe('statistical validation', () => {
 		it('produces expected success rate for level I (~70%)', () => {
 			const config: SimulationConfig = {

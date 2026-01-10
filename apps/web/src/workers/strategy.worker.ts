@@ -81,6 +81,8 @@ function runRestorationStrategy(
 		const scrollResults = new Uint32Array(numSims)
 
 		// Create fresh config for this strategy - completely isolated
+		// IMPORTANT: Disable valks to get accurate restoration-only cost comparison
+		// Valks have 0 price but boost success rates, which would skew results
 		const simConfig: SimulationConfig = {
 			...config,
 			startLevel: 0,
@@ -89,6 +91,9 @@ function runRestorationStrategy(
 			restorationFrom: restFrom,
 			useHepta: false,
 			useOkta: false,
+			valks10From: 0,
+			valks50From: 0,
+			valks100From: 0,
 			prices,
 		}
 
@@ -173,6 +178,8 @@ function runHeptaOktaStrategy(
 		const exquisiteResults = new Uint32Array(numSims)
 
 		// Create fresh config for this strategy - completely isolated
+		// IMPORTANT: Disable valks to get accurate hepta/okta cost comparison
+		// Valks have 0 price but boost success rates, which would skew results
 		const simConfig: SimulationConfig = {
 			...config,
 			startLevel: 0,
@@ -181,6 +188,9 @@ function runHeptaOktaStrategy(
 			restorationFrom: 6, // Fixed at VI for hepta/okta comparison
 			useHepta,
 			useOkta,
+			valks10From: 0,
+			valks50From: 0,
+			valks100From: 0,
 			prices,
 		}
 
