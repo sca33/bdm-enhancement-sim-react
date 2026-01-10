@@ -11,11 +11,11 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	RATE_CACHE,
 	RATE_CACHE_VALKS_10,
-	RATE_CACHE_VALKS_100,
 	RATE_CACHE_VALKS_50,
+	RATE_CACHE_VALKS_100,
 	VALKS_MULTIPLIER_10,
-	VALKS_MULTIPLIER_100,
 	VALKS_MULTIPLIER_50,
+	VALKS_MULTIPLIER_100,
 } from './config'
 import { AwakeningEngine } from './simulator'
 import { DEFAULT_CONFIG, type SimulationConfig } from './types'
