@@ -30,7 +30,11 @@ interface UseStrategyWorkerReturn {
 type PendingRequest<T> = {
 	resolve: (value: T) => void
 	reject: (error: Error) => void
+	timeoutId: ReturnType<typeof setTimeout>
 }
+
+/** Worker request timeout in milliseconds (60 seconds) */
+const WORKER_TIMEOUT_MS = 60_000
 
 /**
  * Hook for running strategy finder simulations in a web worker.
@@ -44,6 +48,15 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 	const [isRestorationRunning, setIsRestorationRunning] = useState(false)
 	const [heptaOktaProgress, setHeptaOktaProgress] = useState(0)
 	const [isHeptaOktaRunning, setIsHeptaOktaRunning] = useState(false)
+
+	/** Clean up a pending request by key */
+	const cleanupPending = useCallback((key: string) => {
+		const pending = pendingRef.current.get(key)
+		if (pending) {
+			clearTimeout(pending.timeoutId)
+			pendingRef.current.delete(key)
+		}
+	}, [])
 
 	useEffect(() => {
 		// Create worker on mount
@@ -66,9 +79,10 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				}
 
 				if (response.type === 'restoration-complete') {
-					const pending = pendingRef.current.get(`restoration-${response.id}`)
+					const key = `restoration-${response.id}`
+					const pending = pendingRef.current.get(key)
 					if (pending) {
-						pendingRef.current.delete(`restoration-${response.id}`)
+						cleanupPending(key)
 						setIsRestorationRunning(false)
 						setRestorationProgress(100)
 						;(pending as PendingRequest<RestorationResult[]>).resolve(response.results)
@@ -77,9 +91,10 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				}
 
 				if (response.type === 'hepta-okta-complete') {
-					const pending = pendingRef.current.get(`hepta-okta-${response.id}`)
+					const key = `hepta-okta-${response.id}`
+					const pending = pendingRef.current.get(key)
 					if (pending) {
-						pendingRef.current.delete(`hepta-okta-${response.id}`)
+						cleanupPending(key)
 						setIsHeptaOktaRunning(false)
 						setHeptaOktaProgress(100)
 						;(pending as PendingRequest<HeptaOktaResult[]>).resolve(response.results)
@@ -88,17 +103,18 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				}
 
 				if (response.type === 'error') {
-					// Try both pending types
-					const restorationPending = pendingRef.current.get(`restoration-${response.id}`)
-					const heptaOktaPending = pendingRef.current.get(`hepta-okta-${response.id}`)
+					// Only one request type should be pending per ID
+					const restorationKey = `restoration-${response.id}`
+					const heptaOktaKey = `hepta-okta-${response.id}`
+					const restorationPending = pendingRef.current.get(restorationKey)
+					const heptaOktaPending = pendingRef.current.get(heptaOktaKey)
 
 					if (restorationPending) {
-						pendingRef.current.delete(`restoration-${response.id}`)
+						cleanupPending(restorationKey)
 						setIsRestorationRunning(false)
 						restorationPending.reject(new Error(response.error))
-					}
-					if (heptaOktaPending) {
-						pendingRef.current.delete(`hepta-okta-${response.id}`)
+					} else if (heptaOktaPending) {
+						cleanupPending(heptaOktaKey)
 						setIsHeptaOktaRunning(false)
 						heptaOktaPending.reject(new Error(response.error))
 					}
@@ -109,6 +125,7 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				console.error('Strategy worker error:', error)
 				// Reject all pending requests
 				for (const [key, pending] of pendingRef.current) {
+					clearTimeout(pending.timeoutId)
 					pending.reject(new Error('Worker error'))
 					pendingRef.current.delete(key)
 				}
@@ -120,15 +137,16 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 		}
 
 		return () => {
-			// Reject all pending requests before terminating
+			// Clear all timeouts and reject pending requests before terminating
 			for (const [, pending] of pendingRef.current) {
+				clearTimeout(pending.timeoutId)
 				pending.reject(new Error('Worker terminated'))
 			}
 			pendingRef.current.clear()
 			workerRef.current?.terminate()
 			workerRef.current = null
 		}
-	}, [])
+	}, [cleanupPending])
 
 	const runRestorationStrategy = useCallback(
 		(
@@ -143,12 +161,23 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				}
 
 				const id = crypto.randomUUID()
+				const key = `restoration-${id}`
 				setRestorationProgress(0)
 				setIsRestorationRunning(true)
 
-				pendingRef.current.set(`restoration-${id}`, {
+				// Set up timeout
+				const timeoutId = setTimeout(() => {
+					if (pendingRef.current.has(key)) {
+						pendingRef.current.delete(key)
+						setIsRestorationRunning(false)
+						reject(new Error('Worker request timed out'))
+					}
+				}, WORKER_TIMEOUT_MS)
+
+				pendingRef.current.set(key, {
 					resolve: resolve as (value: unknown) => void,
 					reject,
+					timeoutId,
 				})
 
 				workerRef.current.postMessage({
@@ -176,12 +205,23 @@ export function useStrategyWorker(): UseStrategyWorkerReturn {
 				}
 
 				const id = crypto.randomUUID()
+				const key = `hepta-okta-${id}`
 				setHeptaOktaProgress(0)
 				setIsHeptaOktaRunning(true)
 
-				pendingRef.current.set(`hepta-okta-${id}`, {
+				// Set up timeout
+				const timeoutId = setTimeout(() => {
+					if (pendingRef.current.has(key)) {
+						pendingRef.current.delete(key)
+						setIsHeptaOktaRunning(false)
+						reject(new Error('Worker request timed out'))
+					}
+				}, WORKER_TIMEOUT_MS)
+
+				pendingRef.current.set(key, {
 					resolve: resolve as (value: unknown) => void,
 					reject,
+					timeoutId,
 				})
 
 				workerRef.current.postMessage({

@@ -6,6 +6,7 @@ import {
 	type SimulationConfig,
 	type SimulationResult,
 	type StepResult,
+	UI_CONSTANTS,
 } from '@bdm-sim/simulator'
 import LZString from 'lz-string'
 import { create } from 'zustand'
@@ -44,8 +45,7 @@ export interface SavedRun {
 }
 
 const SAVED_RUNS_KEY = 'bdm-sim-saved-runs'
-const MAX_SAVED_RUNS = 50
-const STEP_BUFFER_SIZE = 1000 // Ring buffer size for step history
+const { STEP_BUFFER_SIZE, MAX_SAVED_RUNS } = UI_CONSTANTS
 const CURRENT_BUILD_VERSION = typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : 'dev'
 
 function loadSavedRuns(): SavedRun[] {
@@ -179,6 +179,36 @@ export const useStore = create<AppState>()(
 			setConfig: (partial) =>
 				set((state) => {
 					const newConfig = { ...state.config, ...partial }
+
+					// Validate and clamp values
+					newConfig.startLevel = Math.max(0, Math.min(10, newConfig.startLevel))
+					newConfig.targetLevel = Math.max(1, Math.min(10, newConfig.targetLevel))
+
+					// Ensure startLevel < targetLevel
+					if (newConfig.startLevel >= newConfig.targetLevel) {
+						newConfig.startLevel = Math.max(0, newConfig.targetLevel - 1)
+					}
+
+					// Clamp restoration level to valid range (0 = disabled, or between 4 and targetLevel)
+					if (newConfig.restorationFrom > 0) {
+						newConfig.restorationFrom = Math.max(4, Math.min(newConfig.targetLevel, newConfig.restorationFrom))
+					}
+
+					// Clamp Valks levels (0 = disabled, or between 1 and 10)
+					if (newConfig.valks10From > 0) {
+						newConfig.valks10From = Math.max(1, Math.min(10, newConfig.valks10From))
+					}
+					if (newConfig.valks50From > 0) {
+						newConfig.valks50From = Math.max(1, Math.min(10, newConfig.valks50From))
+					}
+					if (newConfig.valks100From > 0) {
+						newConfig.valks100From = Math.max(1, Math.min(10, newConfig.valks100From))
+					}
+
+					// Clamp Hepta/Okta progress
+					newConfig.startHepta = Math.max(0, Math.min(4, newConfig.startHepta))
+					newConfig.startOkta = Math.max(0, Math.min(9, newConfig.startOkta))
+
 					// Reset startHepta/startOkta when startLevel changes
 					if ('startLevel' in partial) {
 						if (newConfig.startLevel !== 7) {
@@ -188,6 +218,7 @@ export const useStore = create<AppState>()(
 							newConfig.startOkta = 0
 						}
 					}
+
 					return { config: newConfig }
 				}),
 			resetConfig: () => set({ config: { ...DEFAULT_CONFIG } }),
@@ -305,11 +336,12 @@ export const useStore = create<AppState>()(
 			stepSimulation: () => {
 				const state = get()
 				const engine = state._engine
-				if (!engine || engine.isComplete()) {
-					set({
-						isRunning: false,
-						simulationResult: engine?.runFullSimulation() ?? null,
-					})
+				if (!engine) {
+					set({ isRunning: false, simulationResult: null })
+					return null
+				}
+				if (engine.isComplete()) {
+					set({ isRunning: false, simulationResult: engine.runFullSimulation() })
 					return null
 				}
 
@@ -327,10 +359,10 @@ export const useStore = create<AppState>()(
 					}
 				}
 
-				// Ring buffer O(1) write - only mutate one slot
-				const newBuffer = [...state._stepBuffer]
+				// Ring buffer O(1) write - mutate in place for performance
+				// (Zustand handles this correctly without requiring immutable updates for internal state)
 				const writeIdx = state._stepBufferIndex % STEP_BUFFER_SIZE
-				newBuffer[writeIdx] = step
+				state._stepBuffer[writeIdx] = step
 
 				set({
 					currentLevel: level,
@@ -351,7 +383,7 @@ export const useStore = create<AppState>()(
 						valks50Used: stats.valks50Used,
 						valks100Used: stats.valks100Used,
 					},
-					_stepBuffer: newBuffer,
+					// Don't replace buffer - it's mutated in place
 					_stepBufferIndex: state._stepBufferIndex + 1,
 					_stepBufferCount: Math.min(state._stepBufferCount + 1, STEP_BUFFER_SIZE),
 				})

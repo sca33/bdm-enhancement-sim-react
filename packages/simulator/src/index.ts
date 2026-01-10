@@ -3,7 +3,6 @@ export { AwakeningEngine } from './simulator'
 
 // Types
 export type {
-	CompactLogEntry,
 	HeptaOktaStrategyResult,
 	MarketPrices,
 	ModuleInfo,
@@ -11,18 +10,11 @@ export type {
 	RestorationStrategyResult,
 	SimulationConfig,
 	SimulationResult,
-	StatsSnapshot,
 	StepResult,
 } from './types'
 
 // Type utilities
-export {
-	compactifyStep,
-	DEFAULT_CONFIG,
-	expandStep,
-	getRestorationAttemptCost,
-	MODULES,
-} from './types'
+export { DEFAULT_CONFIG, getRestorationAttemptCost, MODULES } from './types'
 
 // Configuration
 export {
@@ -37,12 +29,17 @@ export {
 	OKTA_SUB_ENHANCEMENTS,
 	RATE_CACHE,
 	RATE_CACHE_VALKS_10,
-	RATE_CACHE_VALKS_100,
+	RATE_CACHE_VALKS_10_50,
+	RATE_CACHE_VALKS_10_100,
 	RATE_CACHE_VALKS_50,
+	RATE_CACHE_VALKS_50_100,
+	RATE_CACHE_VALKS_100,
+	RATE_CACHE_VALKS_ALL,
 	RESTORATION_MARKET_BUNDLE_SIZE,
 	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
 	ROMAN_NUMERALS,
+	UI_CONSTANTS,
 	VALKS_MULTIPLIER_10,
 	VALKS_MULTIPLIER_100,
 	VALKS_MULTIPLIER_50,

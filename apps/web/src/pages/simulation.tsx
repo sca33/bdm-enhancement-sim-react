@@ -5,6 +5,7 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
 	type StepResult,
+	UI_CONSTANTS,
 } from '@bdm-sim/simulator'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowLeft, Loader2, Pause, Play, RotateCcw } from 'lucide-react'
@@ -68,8 +69,7 @@ export function SimulationPage() {
 			return Math.floor(simulationElapsedTime + currentElapsed)
 		}
 		// Estimated in-game time for instant/fast modes
-		// Average animation time is 0.75s (midpoint of 0.5-1.0s)
-		return Math.floor(attempts * 0.75)
+		return Math.floor(attempts * UI_CONSTANTS.AVG_ANIMATION_TIME)
 	}, [speed, attempts, isRunning, isPaused, simulationStartTime, simulationElapsedTime])
 
 	// Virtual list for log entries - only renders visible items (~30 instead of 20,000+)
@@ -101,10 +101,10 @@ export function SimulationPage() {
 	useEffect(() => {
 		startSimulation()
 		return () => {
-			cleanup()
+			// Only stop simulation on unmount - cleanup is handled by the loop effect
 			stopSimulation()
 		}
-	}, [cleanup])
+	}, [])
 
 	// Trigger flash animation (only in regular speed mode)
 	const triggerFlash = (type: FlashType, duration: number) => {
@@ -115,9 +115,8 @@ export function SimulationPage() {
 
 	// Run simulation loop
 	useEffect(() => {
-		// Stop if not running or paused
+		// Stop if not running or paused - cleanup happens via effect cleanup
 		if (!isRunning || isPaused) {
-			cleanup()
 			return
 		}
 
@@ -138,9 +137,9 @@ export function SimulationPage() {
 			}
 
 			if (speed === 'instant') {
-				// Run in chunks of 1000 to allow UI updates
+				// Run in chunks to allow UI updates
 				const runChunk = () => {
-					for (let i = 0; i < 1000; i++) {
+					for (let i = 0; i < UI_CONSTANTS.INSTANT_CHUNK_SIZE; i++) {
 						// Check flag EVERY iteration for immediate pause
 						if (!isActiveRef.current) return
 						if (!stepSimulation()) {

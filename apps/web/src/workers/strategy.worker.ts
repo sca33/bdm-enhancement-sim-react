@@ -8,6 +8,7 @@ import {
 	type MarketPrices,
 	ROMAN_NUMERALS,
 	type SimulationConfig,
+	UI_CONSTANTS,
 } from '@bdm-sim/simulator'
 
 // Request types
@@ -101,7 +102,7 @@ function runRestorationStrategy(
 			scrollResults[i] = scrolls
 
 			completed++
-			if (completed % 500 === 0) {
+			if (completed % UI_CONSTANTS.PROGRESS_REPORT_INTERVAL === 0) {
 				self.postMessage({
 					type: 'progress',
 					id,
@@ -194,7 +195,7 @@ function runHeptaOktaStrategy(
 			exquisiteResults[i] = exquisite
 
 			completed++
-			if (completed % 500 === 0) {
+			if (completed % UI_CONSTANTS.PROGRESS_REPORT_INTERVAL === 0) {
 				self.postMessage({
 					type: 'progress',
 					id,
