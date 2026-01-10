@@ -22,22 +22,10 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { useStrategyWorker } from '@/hooks/use-strategy-worker'
+import type { ResourceLimits } from '@/workers/strategy.worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 type Tab = 'restoration' | 'hepta-okta'
-
-interface ResourceLimits {
-	crystals: number
-	crystalsUnlimited: boolean
-	scrolls: number
-	scrollsUnlimited: boolean
-	valks10: number
-	valks10Unlimited: boolean
-	valks50: number
-	valks50Unlimited: boolean
-	valks100: number
-	valks100Unlimited: boolean
-}
 
 export function StrategyFinderPage() {
 	const { setPage, numSimulations, setNumSimulations } = useStore()
@@ -106,13 +94,11 @@ function RestorationStrategyTab({
 		crystalsUnlimited: true,
 		scrolls: 100000,
 		scrollsUnlimited: true,
-		// Valks are not used in restoration strategy analysis
-		// (disabled in worker for accurate cost comparison)
-		valks10: 0,
+		valks10: 100,
 		valks10Unlimited: true,
-		valks50: 0,
+		valks50: 50,
 		valks50Unlimited: true,
-		valks100: 0,
+		valks100: 20,
 		valks100Unlimited: true,
 	})
 
@@ -120,17 +106,24 @@ function RestorationStrategyTab({
 		Array<{
 			restorationFrom: number
 			label: string
-			p50: { crystals: number; scrolls: number; silver: number }
-			p90: { crystals: number; scrolls: number; silver: number }
-			worst: { crystals: number; scrolls: number; silver: number }
-			feasible: boolean
-			recommendation?: string
+			successRate: number
+			p50: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+			p90: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+			worst: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
 		}>
 	>([])
 
 	const updateResource = <K extends keyof ResourceLimits>(key: K, value: ResourceLimits[K]) => {
 		setResources((prev) => ({ ...prev, [key]: value }))
 	}
+
+	// Check if all resources are unlimited
+	const allUnlimited =
+		resources.crystalsUnlimited &&
+		resources.scrollsUnlimited &&
+		resources.valks10Unlimited &&
+		resources.valks50Unlimited &&
+		resources.valks100Unlimited
 
 	const runAnalysis = async () => {
 		try {
@@ -145,51 +138,16 @@ function RestorationStrategyTab({
 				strategyConfig,
 				DEFAULT_PRICES,
 				numSimulations,
+				resources,
 			)
 
-			// Process results with resource feasibility check
-			const processedResults = rawResults.map((result) => {
-				const feasible = checkFeasibility(result.p50)
-				return {
-					...result,
-					feasible,
-					recommendation: getFeasibilityMessage(result, feasible),
-				}
-			})
+			// Sort by P50 silver cost (ascending)
+			const sortedResults = [...rawResults].sort((a, b) => a.p50.silver - b.p50.silver)
 
-			// Sort by silver cost, but put feasible strategies first
-			processedResults.sort((a, b) => {
-				if (a.feasible && !b.feasible) return -1
-				if (!a.feasible && b.feasible) return 1
-				return a.p50.silver - b.p50.silver
-			})
-
-			setResults(processedResults)
+			setResults(sortedResults)
 		} catch (error) {
 			console.error('Strategy analysis failed:', error)
 		}
-	}
-
-	const checkFeasibility = (stats: { crystals: number; scrolls: number }) => {
-		if (!resources.crystalsUnlimited && stats.crystals > resources.crystals) return false
-		if (!resources.scrollsUnlimited && stats.scrolls > resources.scrolls) return false
-		return true
-	}
-
-	const getFeasibilityMessage = (
-		result: { p50: { crystals: number; scrolls: number } },
-		feasible: boolean,
-	): string | undefined => {
-		if (feasible) return undefined
-
-		const issues: string[] = []
-		if (!resources.crystalsUnlimited && result.p50.crystals > resources.crystals) {
-			issues.push(`Need ${formatNumber(result.p50.crystals - resources.crystals)} more crystals`)
-		}
-		if (!resources.scrollsUnlimited && result.p50.scrolls > resources.scrolls) {
-			issues.push(`Need ${formatNumber(result.p50.scrolls - resources.scrolls)} more scrolls`)
-		}
-		return issues.join(', ')
 	}
 
 	// Ensure startLevel < targetLevel when target changes
@@ -261,7 +219,7 @@ function RestorationStrategyTab({
 				<CardHeader className="py-3">
 					<CardTitle className="text-sm">Available Resources</CardTitle>
 					<p className="text-xs text-muted-foreground">
-						Set your available resources to filter feasible strategies
+						Set limits to calculate success rate and find optimal strategy
 					</p>
 				</CardHeader>
 				<CardContent className="space-y-3">
@@ -283,10 +241,42 @@ function RestorationStrategyTab({
 						onUnlimitedChange={(v) => updateResource('scrollsUnlimited', v)}
 					/>
 
-					{/* Note about Valks */}
-					<p className="text-[10px] text-muted-foreground italic">
-						Note: Valks bonuses are excluded from strategy analysis for accurate cost comparison.
-					</p>
+					{/* Valks Section */}
+					<div className="pt-2 border-t">
+						<p className="text-xs font-medium mb-2">Valks (used in priority: 100 → 50 → 10)</p>
+						<div className="grid grid-cols-3 gap-2">
+							<ResourceInput
+								label="+10%"
+								value={resources.valks10}
+								unlimited={resources.valks10Unlimited}
+								onChange={(v) => updateResource('valks10', v)}
+								onUnlimitedChange={(v) => updateResource('valks10Unlimited', v)}
+								compact
+							/>
+							<ResourceInput
+								label="+50%"
+								value={resources.valks50}
+								unlimited={resources.valks50Unlimited}
+								onChange={(v) => updateResource('valks50', v)}
+								onUnlimitedChange={(v) => updateResource('valks50Unlimited', v)}
+								compact
+							/>
+							<ResourceInput
+								label="+100%"
+								value={resources.valks100}
+								unlimited={resources.valks100Unlimited}
+								onChange={(v) => updateResource('valks100', v)}
+								onUnlimitedChange={(v) => updateResource('valks100Unlimited', v)}
+								compact
+							/>
+						</div>
+					</div>
+
+					{!allUnlimited && (
+						<p className="text-[10px] text-warning">
+							Resource limits active - success rate will be calculated
+						</p>
+					)}
 				</CardContent>
 			</Card>
 
@@ -321,7 +311,8 @@ function RestorationStrategyTab({
 					<CardHeader className="py-3">
 						<CardTitle className="text-sm">Strategy Comparison</CardTitle>
 						<p className="text-xs text-muted-foreground">
-							+{ROMAN_NUMERALS[startLevel]} → +{ROMAN_NUMERALS[targetLevel]} | Sorted by median cost
+							+{ROMAN_NUMERALS[startLevel]} → +{ROMAN_NUMERALS[targetLevel]} | Sorted by P50 silver
+							cost
 						</p>
 					</CardHeader>
 					<CardContent className="p-0">
@@ -332,6 +323,11 @@ function RestorationStrategyTab({
 										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
 											Restoration From
 										</th>
+										{!allUnlimited && (
+											<th rowSpan={2} className="px-2 py-2 text-center font-medium">
+												Success
+											</th>
+										)}
 										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
 											P50 (Median)
 										</th>
@@ -341,11 +337,17 @@ function RestorationStrategyTab({
 										>
 											P90 (Unlucky)
 										</th>
+										<th
+											colSpan={3}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											Worst Case
+										</th>
 									</tr>
 									<tr className="border-b bg-muted/50">
 										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
 										<th className="px-3 py-1 text-right font-normal">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal">Scrolls</th>
+										<th className="px-3 py-1 text-right font-normal">Rest. Scrolls</th>
 										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
 											Silver
 										</th>
@@ -353,54 +355,81 @@ function RestorationStrategyTab({
 											Crystals
 										</th>
 										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Scrolls
+											Rest. Scrolls
+										</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Rest. Scrolls
 										</th>
 									</tr>
 								</thead>
 								<tbody>
-									{results.map((result, idx) => (
-										<tr
-											key={result.restorationFrom}
-											className={`border-b ${
-												idx === 0 && result.feasible
-													? 'bg-success/10'
-													: !result.feasible
-														? 'opacity-50'
-														: ''
-											}`}
-										>
-											<td className="px-3 py-2 font-medium">
-												<div className="flex items-center gap-2">
-													{result.label}
-													{idx === 0 && result.feasible && (
-														<span className="text-success text-[10px] font-semibold">BEST</span>
-													)}
-													{!result.feasible && (
-														<span className="text-destructive text-[10px]">Insufficient</span>
-													)}
-												</div>
-												{result.recommendation && (
-													<div className="text-[10px] text-muted-foreground mt-0.5">
-														{result.recommendation}
+									{results.map((result, idx) => {
+										const isLowSuccess = result.successRate < 50
+										const isHighSuccess = result.successRate >= 90
+										return (
+											<tr
+												key={result.restorationFrom}
+												className={`border-b ${
+													idx === 0 && (allUnlimited || result.successRate >= 50)
+														? 'bg-success/10'
+														: isLowSuccess && !allUnlimited
+															? 'opacity-60'
+															: ''
+												}`}
+											>
+												<td className="px-3 py-2 font-medium">
+													<div className="flex items-center gap-2">
+														{result.label}
+														{idx === 0 && (allUnlimited || result.successRate >= 50) && (
+															<span className="text-success text-[10px] font-semibold">BEST</span>
+														)}
 													</div>
+												</td>
+												{!allUnlimited && (
+													<td
+														className={`px-2 py-2 text-center font-medium ${
+															isLowSuccess
+																? 'text-destructive'
+																: isHighSuccess
+																	? 'text-success'
+																	: 'text-warning'
+														}`}
+													>
+														{result.successRate.toFixed(0)}%
+													</td>
 												)}
-											</td>
-											<td className="px-3 py-2 text-right border-l">
-												{formatSilver(result.p50.silver)}
-											</td>
-											<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-											<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
-											<td className="px-3 py-2 text-right border-l text-muted-foreground">
-												{formatSilver(result.p90.silver)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.p90.crystals)}
-											</td>
-											<td className="px-3 py-2 text-right text-muted-foreground">
-												{formatNumber(result.p90.scrolls)}
-											</td>
-										</tr>
-									))}
+												<td className="px-3 py-2 text-right border-l">
+													{formatSilver(result.p50.silver)}
+												</td>
+												<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
+												<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
+												<td className="px-3 py-2 text-right border-l text-muted-foreground">
+													{formatSilver(result.p90.silver)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.p90.crystals)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.p90.scrolls)}
+												</td>
+												<td className="px-3 py-2 text-right border-l text-muted-foreground">
+													{formatSilver(result.worst.silver)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.worst.crystals)}
+												</td>
+												<td className="px-3 py-2 text-right text-muted-foreground">
+													{formatNumber(result.worst.scrolls)}
+												</td>
+											</tr>
+										)
+									})}
 								</tbody>
 							</table>
 						</div>
@@ -426,8 +455,10 @@ function RestorationStrategyTab({
 						<strong>P90:</strong> 90% of simulations cost less than this - prepare for bad luck.
 					</p>
 					<p>
-						Strategies that exceed your available resources are marked as "Insufficient" and shown
-						at the bottom.
+						<strong>Worst Case:</strong> The most expensive successful simulation in the sample.
+					</p>
+					<p>
+						<strong>Rest. Scrolls:</strong> Restoration scrolls used (200 per restoration attempt).
 					</p>
 				</CardContent>
 			</Card>
@@ -510,6 +541,20 @@ function HeptaOktaStrategyTab({
 		}>
 	>([])
 
+	// Default unlimited resources for legacy hepta/okta analysis
+	const defaultResources: ResourceLimits = {
+		crystals: 0,
+		crystalsUnlimited: true,
+		scrolls: 0,
+		scrollsUnlimited: true,
+		valks10: 0,
+		valks10Unlimited: true,
+		valks50: 0,
+		valks50Unlimited: true,
+		valks100: 0,
+		valks100Unlimited: true,
+	}
+
 	const runAnalysis = async () => {
 		try {
 			const strategyConfig = {
@@ -518,7 +563,12 @@ function HeptaOktaStrategyTab({
 				prices: DEFAULT_PRICES,
 			}
 
-			const rawResults = await runHeptaOktaStrategy(strategyConfig, DEFAULT_PRICES, numSimulations)
+			const rawResults = await runHeptaOktaStrategy(
+				strategyConfig,
+				DEFAULT_PRICES,
+				numSimulations,
+				defaultResources,
+			)
 			setResults([...rawResults].sort((a, b) => a.p50.silver - b.p50.silver))
 		} catch (error) {
 			console.error('Strategy analysis failed:', error)
@@ -610,11 +660,17 @@ function HeptaOktaStrategyTab({
 										>
 											P90
 										</th>
+										<th
+											colSpan={4}
+											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
+										>
+											Worst
+										</th>
 									</tr>
 									<tr className="border-b bg-muted/50">
 										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
 										<th className="px-3 py-1 text-right font-normal">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal">Scrolls</th>
+										<th className="px-3 py-1 text-right font-normal">Rest. Scrolls</th>
 										<th className="px-3 py-1 text-right font-normal">Exquisite</th>
 										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
 											Silver
@@ -623,7 +679,19 @@ function HeptaOktaStrategyTab({
 											Crystals
 										</th>
 										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Scrolls
+											Rest. Scrolls
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Exquisite
+										</th>
+										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
+											Silver
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Rest. Scrolls
 										</th>
 										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
 											Exquisite
@@ -657,6 +725,18 @@ function HeptaOktaStrategyTab({
 											</td>
 											<td className="px-3 py-2 text-right text-muted-foreground">
 												{formatNumber(result.p90.exquisite)}
+											</td>
+											<td className="px-3 py-2 text-right border-l text-muted-foreground">
+												{formatSilver(result.worst.silver)}
+											</td>
+											<td className="px-3 py-2 text-right text-muted-foreground">
+												{formatNumber(result.worst.crystals)}
+											</td>
+											<td className="px-3 py-2 text-right text-muted-foreground">
+												{formatNumber(result.worst.scrolls)}
+											</td>
+											<td className="px-3 py-2 text-right text-muted-foreground">
+												{formatNumber(result.worst.exquisite)}
 											</td>
 										</tr>
 									))}
