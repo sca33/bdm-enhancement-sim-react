@@ -65,31 +65,13 @@ export function AwakeningConfigPage() {
 				)}
 			</Card>
 
-			{/* Target & Start */}
+			{/* Start & Target */}
 			<Card>
 				<CardHeader className="py-3">
-					<CardTitle className="text-sm">Target & Starting Settings</CardTitle>
+					<CardTitle className="text-sm">Start & Target Settings</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div className="grid grid-cols-2 gap-3">
-						<div>
-							<label className="text-xs text-muted-foreground">Target Level</label>
-							<Select
-								value={String(config.targetLevel)}
-								onValueChange={(v) => setConfig({ targetLevel: Number(v) })}
-							>
-								<SelectTrigger className="mt-1">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
-										<SelectItem key={level} value={String(level)}>
-											+{ROMAN_NUMERALS[level]} ({level})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
 						<div>
 							<label className="text-xs text-muted-foreground">Start Level</label>
 							<Select
@@ -101,6 +83,24 @@ export function AwakeningConfigPage() {
 								</SelectTrigger>
 								<SelectContent>
 									{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
+										<SelectItem key={level} value={String(level)}>
+											+{ROMAN_NUMERALS[level]} ({level})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<label className="text-xs text-muted-foreground">Target Level</label>
+							<Select
+								value={String(config.targetLevel)}
+								onValueChange={(v) => setConfig({ targetLevel: Number(v) })}
+							>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
 										<SelectItem key={level} value={String(level)}>
 											+{ROMAN_NUMERALS[level]} ({level})
 										</SelectItem>
