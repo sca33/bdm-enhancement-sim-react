@@ -5,7 +5,7 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
-import { ArrowLeft, ChevronDown, ChevronUp, Play, Search } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Play } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -23,8 +23,7 @@ import {
 import { useStore } from '@/hooks/use-store'
 
 export function AwakeningConfigPage() {
-	const { config, setConfig, setPage, speed, setSpeed, numSimulations, setNumSimulations } =
-		useStore()
+	const { config, setConfig, setPage, speed, setSpeed } = useStore()
 	const [showRates, setShowRates] = useState(false)
 
 	return (
@@ -308,34 +307,6 @@ export function AwakeningConfigPage() {
 				<Play className="w-4 h-4 mr-2" />
 				Start Simulation
 			</Button>
-
-			{/* Strategy Analysis */}
-			<Card>
-				<CardHeader className="py-3">
-					<CardTitle className="text-sm">Strategy Analysis</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-3">
-					<div>
-						<label className="text-xs text-muted-foreground">Simulations per strategy</label>
-						<input
-							type="number"
-							value={numSimulations}
-							onChange={(e) => setNumSimulations(Number.parseInt(e.target.value, 10) || 1000)}
-							className="w-full mt-1 h-9 px-3 rounded-md border bg-input text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-						/>
-					</div>
-					<div className="grid grid-cols-2 gap-2">
-						<Button variant="secondary" onClick={() => setPage('restoration-strategy')}>
-							<Search className="w-4 h-4 mr-1" />
-							Restoration
-						</Button>
-						<Button variant="secondary" onClick={() => setPage('hepta-okta-strategy')}>
-							<Search className="w-4 h-4 mr-1" />
-							Hepta/Okta
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
 		</div>
 	)
 }

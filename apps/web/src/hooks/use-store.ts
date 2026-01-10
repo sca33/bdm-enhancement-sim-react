@@ -12,12 +12,7 @@ import LZString from 'lz-string'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Page =
-	| 'home'
-	| 'awakening-config'
-	| 'simulation'
-	| 'restoration-strategy'
-	| 'hepta-okta-strategy'
+export type Page = 'home' | 'awakening-config' | 'simulation' | 'strategy-finder'
 
 export type SimulationSpeed = 'instant' | 'fast' | 'regular'
 
@@ -191,7 +186,10 @@ export const useStore = create<AppState>()(
 
 					// Clamp restoration level to valid range (0 = disabled, or between 4 and targetLevel)
 					if (newConfig.restorationFrom > 0) {
-						newConfig.restorationFrom = Math.max(4, Math.min(newConfig.targetLevel, newConfig.restorationFrom))
+						newConfig.restorationFrom = Math.max(
+							4,
+							Math.min(newConfig.targetLevel, newConfig.restorationFrom),
+						)
 					}
 
 					// Clamp Valks levels (0 = disabled, or between 1 and 10)

@@ -1,6 +1,7 @@
 import { MODULES } from '@bdm-sim/simulator'
+import { Play, Search } from 'lucide-react'
 
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button, Card, CardDescription, CardHeader, CardTitle } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 
 export function HomePage() {
@@ -15,15 +16,7 @@ export function HomePage() {
 
 			<div className="space-y-3">
 				{MODULES.map((module, idx) => (
-					<Card
-						key={module.id}
-						className={
-							module.implemented
-								? 'cursor-pointer hover:bg-card/80 transition-colors'
-								: 'opacity-60'
-						}
-						onClick={() => module.implemented && setPage('awakening-config')}
-					>
+					<Card key={module.id} className={module.implemented ? '' : 'opacity-60'}>
 						<CardHeader className="py-4">
 							<div className="flex items-center justify-between">
 								<CardTitle className="text-base">
@@ -37,6 +30,24 @@ export function HomePage() {
 								</span>
 							</div>
 							<CardDescription>{module.description}</CardDescription>
+
+							{/* Action buttons - only show for implemented modules */}
+							{module.implemented && (
+								<div className="flex gap-2 pt-3">
+									<Button className="flex-1" onClick={() => setPage('awakening-config')}>
+										<Play className="w-4 h-4 mr-2" />
+										Simulator
+									</Button>
+									<Button
+										variant="secondary"
+										size="default"
+										onClick={() => setPage('strategy-finder')}
+									>
+										<Search className="w-4 h-4 mr-1" />
+										Strategy
+									</Button>
+								</div>
+							)}
 						</CardHeader>
 					</Card>
 				))}

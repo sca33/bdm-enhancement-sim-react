@@ -63,10 +63,13 @@ function runRestorationStrategy(
 	id: string,
 ): RestorationResult[] {
 	const targetLevel = config.targetLevel
+	const startLevel = config.startLevel
 
-	// Test restoration from IV to target-1
+	// Test restoration from max(IV, startLevel+1) to target-1
+	// Restoration only makes sense for levels above where we start
+	const minRestoration = Math.max(4, startLevel + 1)
 	const restorationOptions: number[] = []
-	for (let i = 4; i < targetLevel; i++) {
+	for (let i = minRestoration; i < targetLevel; i++) {
 		restorationOptions.push(i)
 	}
 
@@ -85,7 +88,7 @@ function runRestorationStrategy(
 		// Valks have 0 price but boost success rates, which would skew results
 		const simConfig: SimulationConfig = {
 			...config,
-			startLevel: 0,
+			startLevel: config.startLevel, // Respect the startLevel from config
 			startHepta: 0,
 			startOkta: 0,
 			restorationFrom: restFrom,
