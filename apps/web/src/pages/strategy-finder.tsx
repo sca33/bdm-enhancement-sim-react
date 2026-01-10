@@ -5,10 +5,10 @@ import {
 	OKTA_SUB_ENHANCEMENTS,
 	ROMAN_NUMERALS,
 } from '@bdm-sim/simulator'
-import { ArrowLeft, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 
-import { DistributionHistogram } from '@/components/distribution-graph'
+import { DistributionHistogram, SurvivalCurve } from '@/components/distribution-graph'
 import {
 	Button,
 	Card,
@@ -23,7 +23,11 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { useStrategyWorker } from '@/hooks/use-strategy-worker'
-import type { DistributionData, ResourceLimits } from '@/workers/strategy.worker'
+import type {
+	DistributionData,
+	ResourceLimits,
+	SurvivalCurvePoint,
+} from '@/workers/strategy.worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 
 type Tab = 'restoration' | 'hepta-okta'
@@ -108,15 +112,44 @@ function RestorationStrategyTab({
 			restorationFrom: number
 			label: string
 			successRate: number
-			p50: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
-			p90: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
-			worst: { crystals: number; scrolls: number; silver: number; valks10: number; valks50: number; valks100: number }
+			p50: {
+				crystals: number
+				scrolls: number
+				silver: number
+				valks10: number
+				valks50: number
+				valks100: number
+			}
+			p90: {
+				crystals: number
+				scrolls: number
+				silver: number
+				valks10: number
+				valks50: number
+				valks100: number
+			}
+			worst: {
+				crystals: number
+				scrolls: number
+				silver: number
+				valks10: number
+				valks50: number
+				valks100: number
+			}
 			distribution: DistributionData
 			failedDistribution?: DistributionData
+			expectedCostPerSuccess: number
+			expectedAttempts: number
+			meanCostAllRuns: number
+			meanCostSuccessful: number
+			survivalCurve?: SurvivalCurvePoint[]
 		}>
 	>([])
 
 	const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+	const [expandedRowViews, setExpandedRowViews] = useState<Map<number, 'histogram' | 'survival'>>(
+		new Map(),
+	)
 
 	const updateResource = <K extends keyof ResourceLimits>(key: K, value: ResourceLimits[K]) => {
 		setResources((prev) => ({ ...prev, [key]: value }))
@@ -158,8 +191,15 @@ function RestorationStrategyTab({
 				resources,
 			)
 
-			// Sort by P50 silver cost (ascending)
-			const sortedResults = [...rawResults].sort((a, b) => a.p50.silver - b.p50.silver)
+			// Sort by completion rate (desc), then by P50 silver cost (asc) as tiebreaker
+			const sortedResults = [...rawResults].sort((a, b) => {
+				// First: completion rate descending
+				if (b.successRate !== a.successRate) {
+					return b.successRate - a.successRate
+				}
+				// Tiebreaker: P50 silver cost ascending
+				return a.p50.silver - b.p50.silver
+			})
 
 			setResults(sortedResults)
 		} catch (error) {
@@ -328,11 +368,27 @@ function RestorationStrategyTab({
 					<CardHeader className="py-3">
 						<CardTitle className="text-sm">Strategy Comparison</CardTitle>
 						<p className="text-xs text-muted-foreground">
-							+{ROMAN_NUMERALS[startLevel]} → +{ROMAN_NUMERALS[targetLevel]} | Sorted by P50 silver
-							cost
+							+{ROMAN_NUMERALS[startLevel]} → +{ROMAN_NUMERALS[targetLevel]} | Sorted by completion
+							%, then P50 cost
 						</p>
 					</CardHeader>
 					<CardContent className="p-0">
+						{/* Warning banner for low success rates */}
+						{!allUnlimited && results.some((r) => r.successRate < 100) && (
+							<div className="bg-muted/50 border-b border-border px-4 py-3">
+								<div className="flex items-start gap-3">
+									<AlertTriangle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+									<div className="text-xs">
+										<p className="font-medium">P50/P90/Worst include all runs</p>
+										<p className="text-muted-foreground mt-1">
+											Statistics now include runs that hit crystal limits.{' '}
+											<strong>Completion</strong> shows % of runs that reached the target. Failed
+											runs show cost at crystal exhaustion.
+										</p>
+									</div>
+								</div>
+							</div>
+						)}
 						<div className="overflow-x-auto">
 							<table className="w-full text-xs">
 								<thead>
@@ -341,8 +397,12 @@ function RestorationStrategyTab({
 											Restoration From
 										</th>
 										{!allUnlimited && (
-											<th rowSpan={2} className="px-2 py-2 text-center font-medium">
-												Success
+											<th
+												rowSpan={2}
+												className="px-2 py-2 text-center font-medium"
+												title="% of runs that reached target before crystals ran out"
+											>
+												Completion
 											</th>
 										)}
 										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
@@ -432,8 +492,12 @@ function RestorationStrategyTab({
 													<td className="px-3 py-2 text-right border-l">
 														{formatSilver(result.p50.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-													<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
+													<td className="px-3 py-2 text-right">
+														{formatNumber(result.p50.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right">
+														{formatNumber(result.p50.scrolls)}
+													</td>
 													<td className="px-3 py-2 text-right border-l text-muted-foreground">
 														{formatSilver(result.p90.silver)}
 													</td>
@@ -456,10 +520,64 @@ function RestorationStrategyTab({
 												{isExpanded && (
 													<tr className="border-b bg-muted/20">
 														<td colSpan={colSpan} className="px-4 py-3">
-															<DistributionHistogram
-																distribution={result.distribution}
-																failedDistribution={result.failedDistribution}
-															/>
+															{/* View toggle (only show when survival curve is available) */}
+															{result.survivalCurve && result.survivalCurve.length > 0 && (
+																<div className="flex gap-2 mb-3">
+																	<button
+																		type="button"
+																		className={`px-2 py-1 text-xs rounded ${
+																			(
+																				expandedRowViews.get(result.restorationFrom) ?? 'histogram'
+																			) === 'histogram'
+																				? 'bg-primary text-primary-foreground'
+																				: 'bg-muted text-muted-foreground hover:bg-muted/80'
+																		}`}
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			setExpandedRowViews((prev) => {
+																				const next = new Map(prev)
+																				next.set(result.restorationFrom, 'histogram')
+																				return next
+																			})
+																		}}
+																	>
+																		Distribution
+																	</button>
+																	<button
+																		type="button"
+																		className={`px-2 py-1 text-xs rounded ${
+																			expandedRowViews.get(result.restorationFrom) === 'survival'
+																				? 'bg-primary text-primary-foreground'
+																				: 'bg-muted text-muted-foreground hover:bg-muted/80'
+																		}`}
+																		onClick={(e) => {
+																			e.stopPropagation()
+																			setExpandedRowViews((prev) => {
+																				const next = new Map(prev)
+																				next.set(result.restorationFrom, 'survival')
+																				return next
+																			})
+																		}}
+																	>
+																		Success Probability
+																	</button>
+																</div>
+															)}
+
+															{/* Show histogram or survival curve based on selection */}
+															{expandedRowViews.get(result.restorationFrom) === 'survival' &&
+															result.survivalCurve &&
+															result.survivalCurve.length > 0 ? (
+																<SurvivalCurve
+																	data={result.survivalCurve}
+																	currentSuccessRate={result.successRate}
+																/>
+															) : (
+																<DistributionHistogram
+																	distribution={result.distribution}
+																	failedDistribution={result.failedDistribution}
+																/>
+															)}
 														</td>
 													</tr>
 												)}
@@ -484,14 +602,18 @@ function RestorationStrategyTab({
 						starting levels and finds the most cost-effective approach.
 					</p>
 					<p>
-						<strong>P50 (Median):</strong> 50% of simulations cost less than this - your expected
-						cost.
+						<strong>Completion:</strong> % of simulations that reached the target level before
+						crystals ran out. Failed runs are included in cost statistics.
 					</p>
 					<p>
-						<strong>P90:</strong> 90% of simulations cost less than this - prepare for bad luck.
+						<strong>P50 (Median):</strong> 50% of ALL simulations cost less than this — includes
+						both successful runs and runs that hit crystal limits.
 					</p>
 					<p>
-						<strong>Worst Case:</strong> The most expensive successful simulation in the sample.
+						<strong>P90:</strong> 90% of ALL simulations cost less than this — prepare for bad luck.
+					</p>
+					<p>
+						<strong>Worst Case:</strong> The most expensive simulation in the sample.
 					</p>
 					<p>
 						<strong>Rest. Scrolls:</strong> Restoration scrolls used (200 per restoration attempt).
@@ -773,9 +895,15 @@ function HeptaOktaStrategyTab({
 													<td className="px-3 py-2 text-right border-l">
 														{formatSilver(result.p50.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
-													<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
-													<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
+													<td className="px-3 py-2 text-right">
+														{formatNumber(result.p50.crystals)}
+													</td>
+													<td className="px-3 py-2 text-right">
+														{formatNumber(result.p50.scrolls)}
+													</td>
+													<td className="px-3 py-2 text-right">
+														{formatNumber(result.p50.exquisite)}
+													</td>
 													<td className="px-3 py-2 text-right border-l text-muted-foreground">
 														{formatSilver(result.p90.silver)}
 													</td>
