@@ -23,7 +23,39 @@ export class ErrorBoundary extends Component<Props, State> {
 	}
 
 	componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+		// Log full error details for debugging (only visible in dev tools)
 		console.error('Error boundary caught error:', error, errorInfo)
+	}
+
+	/**
+	 * Sanitize error message for display to user.
+	 * Removes potentially sensitive information like file paths, URLs, or stack traces.
+	 */
+	getSafeErrorMessage(): string {
+		const error = this.state.error
+		if (!error?.message) return 'Unknown error'
+
+		const message = error.message
+
+		// Check for common sensitive patterns
+		const sensitivePatterns = [
+			/https?:\/\/[^\s]+/gi, // URLs
+			/\/[a-z_\-/.]+\.(js|ts|tsx|jsx|mjs)/gi, // File paths
+			/at\s+\w+\s+\([^)]+\)/gi, // Stack trace lines
+			/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi, // Emails
+		]
+
+		let sanitized = message
+		for (const pattern of sensitivePatterns) {
+			sanitized = sanitized.replace(pattern, '[redacted]')
+		}
+
+		// Truncate very long messages
+		if (sanitized.length > 200) {
+			sanitized = sanitized.substring(0, 200) + '...'
+		}
+
+		return sanitized
 	}
 
 	handleReset = () => {
@@ -55,7 +87,7 @@ export class ErrorBoundary extends Component<Props, State> {
 							</p>
 							{this.state.error && (
 								<div className="bg-muted p-3 rounded text-xs font-mono overflow-auto max-h-32">
-									{this.state.error.message}
+									{this.getSafeErrorMessage()}
 								</div>
 							)}
 							<Button onClick={this.handleReset} className="w-full">

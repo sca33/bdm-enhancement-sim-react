@@ -336,11 +336,12 @@ export const useStore = create<AppState>()(
 			stepSimulation: () => {
 				const state = get()
 				const engine = state._engine
-				if (!engine || engine.isComplete()) {
-					set({
-						isRunning: false,
-						simulationResult: engine?.runFullSimulation() ?? null,
-					})
+				if (!engine) {
+					set({ isRunning: false, simulationResult: null })
+					return null
+				}
+				if (engine.isComplete()) {
+					set({ isRunning: false, simulationResult: engine.runFullSimulation() })
 					return null
 				}
 

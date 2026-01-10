@@ -101,10 +101,10 @@ export function SimulationPage() {
 	useEffect(() => {
 		startSimulation()
 		return () => {
-			cleanup()
+			// Only stop simulation on unmount - cleanup is handled by the loop effect
 			stopSimulation()
 		}
-	}, [cleanup])
+	}, [])
 
 	// Trigger flash animation (only in regular speed mode)
 	const triggerFlash = (type: FlashType, duration: number) => {
@@ -115,9 +115,8 @@ export function SimulationPage() {
 
 	// Run simulation loop
 	useEffect(() => {
-		// Stop if not running or paused
+		// Stop if not running or paused - cleanup happens via effect cleanup
 		if (!isRunning || isPaused) {
-			cleanup()
 			return
 		}
 
