@@ -620,11 +620,11 @@ function HeptaOktaStrategyTab({
 										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
 											Strategy
 										</th>
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
+										<th colSpan={4} className="px-3 py-1 text-center font-medium border-l">
 											P50
 										</th>
 										<th
-											colSpan={3}
+											colSpan={4}
 											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
 										>
 											P90
@@ -633,12 +633,16 @@ function HeptaOktaStrategyTab({
 									<tr className="border-b bg-muted/50">
 										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
 										<th className="px-3 py-1 text-right font-normal">Crystals</th>
+										<th className="px-3 py-1 text-right font-normal">Scrolls</th>
 										<th className="px-3 py-1 text-right font-normal">Exquisite</th>
 										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
 											Silver
 										</th>
 										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
 											Crystals
+										</th>
+										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
+											Scrolls
 										</th>
 										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
 											Exquisite
@@ -659,12 +663,16 @@ function HeptaOktaStrategyTab({
 												{formatSilver(result.p50.silver)}
 											</td>
 											<td className="px-3 py-2 text-right">{formatNumber(result.p50.crystals)}</td>
+											<td className="px-3 py-2 text-right">{formatNumber(result.p50.scrolls)}</td>
 											<td className="px-3 py-2 text-right">{formatNumber(result.p50.exquisite)}</td>
 											<td className="px-3 py-2 text-right border-l text-muted-foreground">
 												{formatSilver(result.p90.silver)}
 											</td>
 											<td className="px-3 py-2 text-right text-muted-foreground">
 												{formatNumber(result.p90.crystals)}
+											</td>
+											<td className="px-3 py-2 text-right text-muted-foreground">
+												{formatNumber(result.p90.scrolls)}
 											</td>
 											<td className="px-3 py-2 text-right text-muted-foreground">
 												{formatNumber(result.p90.exquisite)}
