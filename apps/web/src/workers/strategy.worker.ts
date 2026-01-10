@@ -159,8 +159,8 @@ function generateSurvivalCurve(
 	// Handle edge case where all values are the same
 	if (minSilver === maxSilver) {
 		let successCount = 0
-		for (let i = 0; i < numSims; i++) {
-			successCount += successResults[i]
+		for (const idx of sortedIndices) {
+			successCount += successResults[idx]
 		}
 		return [{ silver: minSilver, successProbability: (successCount / numSims) * 100 }]
 	}
@@ -173,7 +173,8 @@ function generateSurvivalCurve(
 	let sortedIdx = 0
 
 	for (let i = 0; i < numPoints; i++) {
-		const budgetLevel = minSilver + step * i
+		// Ensure last point exactly equals maxSilver to avoid floating-point issues
+		const budgetLevel = i === numPoints - 1 ? maxSilver : minSilver + step * i
 
 		// Advance through sorted indices until we pass the budget level
 		while (sortedIdx < numSims && silverResults[sortedIndices[sortedIdx]] <= budgetLevel) {

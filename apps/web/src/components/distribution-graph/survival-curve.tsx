@@ -26,21 +26,17 @@ export function SurvivalCurve({ data, height = 120, currentSuccessRate }: Surviv
 
 			{/* Key budget points */}
 			<div className="flex gap-4 text-xs text-muted-foreground flex-wrap">
-				{data.length > 0 && (
-					<>
-						<span>
-							At {formatSilver(data[0].silver)}: {data[0].successProbability.toFixed(0)}%
-						</span>
-						<span>
-							At {formatSilver(data[Math.floor(data.length / 2)].silver)}:{' '}
-							{data[Math.floor(data.length / 2)].successProbability.toFixed(0)}%
-						</span>
-						<span>
-							At {formatSilver(data[data.length - 1].silver)}:{' '}
-							{data[data.length - 1].successProbability.toFixed(0)}%
-						</span>
-					</>
-				)}
+				<span>
+					At {formatSilver(data[0].silver)}: {data[0].successProbability.toFixed(0)}%
+				</span>
+				<span>
+					At {formatSilver(data[Math.floor(data.length / 2)].silver)}:{' '}
+					{data[Math.floor(data.length / 2)].successProbability.toFixed(0)}%
+				</span>
+				<span>
+					At {formatSilver(data[data.length - 1].silver)}:{' '}
+					{data[data.length - 1].successProbability.toFixed(0)}%
+				</span>
 			</div>
 		</div>
 	)
@@ -110,33 +106,31 @@ function SurvivalGraph({ data, height, maxSuccess }: SurvivalGraphProps) {
 				<path d={pathD} fill="none" stroke="var(--color-primary)" strokeWidth="2" opacity="0.8" />
 
 				{/* Interactive hover points */}
-				<TooltipProvider delayDuration={0}>
-					{data.map((point, i) => {
-						const x = ((point.silver - minSilver) / silverRange) * 100
-						const y =
-							height - (point.successProbability / Math.max(maxSuccess, 1)) * (height - 10) - 5
+				{data.map((point, i) => {
+					const x = ((point.silver - minSilver) / silverRange) * 100
+					const y =
+						height - (point.successProbability / Math.max(maxSuccess, 1)) * (height - 10) - 5
 
-						return (
-							<Tooltip key={i}>
-								<TooltipTrigger asChild>
-									<circle
-										cx={x}
-										cy={y}
-										r={4}
-										fill="var(--color-primary)"
-										className="cursor-pointer opacity-0 hover:opacity-100"
-									/>
-								</TooltipTrigger>
-								<TooltipContent side="top" className="text-xs">
-									<div className="space-y-1">
-										<div className="font-medium">Budget: {formatSilver(point.silver)}</div>
-										<div>Success: {point.successProbability.toFixed(1)}%</div>
-									</div>
-								</TooltipContent>
-							</Tooltip>
-						)
-					})}
-				</TooltipProvider>
+					return (
+						<Tooltip key={i}>
+							<TooltipTrigger asChild>
+								<circle
+									cx={x}
+									cy={y}
+									r={4}
+									fill="var(--color-primary)"
+									className="cursor-pointer opacity-0 hover:opacity-100"
+								/>
+							</TooltipTrigger>
+							<TooltipContent side="top" className="text-xs">
+								<div className="space-y-1">
+									<div className="font-medium">Budget: {formatSilver(point.silver)}</div>
+									<div>Success: {point.successProbability.toFixed(1)}%</div>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					)
+				})}
 
 				{/* 50% success marker (if achievable) */}
 				{fiftyPercentPoint && (
