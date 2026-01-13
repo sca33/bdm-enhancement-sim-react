@@ -65,7 +65,7 @@ export type SurvivalCurvePoint = {
 function generateDistribution(
 	silverResults: Float64Array,
 	sortedIndices: number[],
-	numBuckets: number = 30,
+	numBuckets = 30,
 ): DistributionData {
 	const count = sortedIndices.length
 	if (count === 0) {
@@ -148,7 +148,7 @@ function generateSurvivalCurve(
 	silverResults: Float64Array,
 	successResults: Uint8Array,
 	sortedIndices: number[], // Pre-sorted by silver cost
-	numPoints: number = 50,
+	numPoints = 50,
 ): SurvivalCurvePoint[] {
 	const numSims = sortedIndices.length
 	if (numSims === 0) return []
@@ -219,6 +219,7 @@ export type RestorationResult = {
 		crystals: number
 		scrolls: number
 		silver: number
+		exquisite: number
 		valks10: number
 		valks50: number
 		valks100: number
@@ -227,6 +228,7 @@ export type RestorationResult = {
 		crystals: number
 		scrolls: number
 		silver: number
+		exquisite: number
 		valks10: number
 		valks50: number
 		valks100: number
@@ -235,6 +237,7 @@ export type RestorationResult = {
 		crystals: number
 		scrolls: number
 		silver: number
+		exquisite: number
 		valks10: number
 		valks50: number
 		valks100: number
@@ -337,6 +340,7 @@ function runRestorationStrategy(
 		const silverResults = new Float64Array(numSims)
 		const crystalResults = new Uint32Array(numSims)
 		const scrollResults = new Uint32Array(numSims)
+		const exquisiteResults = new Uint32Array(numSims)
 		const valks10Results = new Uint32Array(numSims)
 		const valks50Results = new Uint32Array(numSims)
 		const valks100Results = new Uint32Array(numSims)
@@ -346,12 +350,12 @@ function runRestorationStrategy(
 		// Use Valks from config since they're free (price=0) and reflect realistic gameplay
 		const simConfig: SimulationConfig = {
 			...config,
-			startLevel: config.startLevel, // Respect the startLevel from config
-			startHepta: 0,
-			startOkta: 0,
+			startLevel: config.startLevel,
+			startHepta: config.startHepta,
+			startOkta: config.startOkta,
 			restorationFrom: restFrom,
-			useHepta: false,
-			useOkta: false,
+			useHepta: config.useHepta,
+			useOkta: config.useOkta,
 			prices,
 		}
 
@@ -371,20 +375,22 @@ function runRestorationStrategy(
 			const engine = new AwakeningEngine(simConfig)
 
 			if (limits) {
-				const [crystals, scrolls, silver, , valks10, valks50, valks100, success] =
+				const [crystals, scrolls, silver, exquisite, valks10, valks50, valks100, success] =
 					engine.runFastWithLimits(limits)
 				silverResults[i] = silver
 				crystalResults[i] = crystals
 				scrollResults[i] = scrolls
+				exquisiteResults[i] = exquisite
 				valks10Results[i] = valks10
 				valks50Results[i] = valks50
 				valks100Results[i] = valks100
 				successResults[i] = success
 			} else {
-				const [crystals, scrolls, silver, , valks10, valks50, valks100] = engine.runFast()
+				const [crystals, scrolls, silver, exquisite, valks10, valks50, valks100] = engine.runFast()
 				silverResults[i] = silver
 				crystalResults[i] = crystals
 				scrollResults[i] = scrolls
+				exquisiteResults[i] = exquisite
 				valks10Results[i] = valks10
 				valks50Results[i] = valks50
 				valks100Results[i] = valks100
@@ -468,6 +474,7 @@ function runRestorationStrategy(
 				crystals: crystalResults[allIndices[p50Idx]],
 				scrolls: scrollResults[allIndices[p50Idx]],
 				silver: silverResults[allIndices[p50Idx]],
+				exquisite: exquisiteResults[allIndices[p50Idx]],
 				valks10: valks10Results[allIndices[p50Idx]],
 				valks50: valks50Results[allIndices[p50Idx]],
 				valks100: valks100Results[allIndices[p50Idx]],
@@ -476,6 +483,7 @@ function runRestorationStrategy(
 				crystals: crystalResults[allIndices[p90Idx]],
 				scrolls: scrollResults[allIndices[p90Idx]],
 				silver: silverResults[allIndices[p90Idx]],
+				exquisite: exquisiteResults[allIndices[p90Idx]],
 				valks10: valks10Results[allIndices[p90Idx]],
 				valks50: valks50Results[allIndices[p90Idx]],
 				valks100: valks100Results[allIndices[p90Idx]],
@@ -484,6 +492,7 @@ function runRestorationStrategy(
 				crystals: crystalResults[allIndices[worstIdx]],
 				scrolls: scrollResults[allIndices[worstIdx]],
 				silver: silverResults[allIndices[worstIdx]],
+				exquisite: exquisiteResults[allIndices[worstIdx]],
 				valks10: valks10Results[allIndices[worstIdx]],
 				valks50: valks50Results[allIndices[worstIdx]],
 				valks100: valks100Results[allIndices[worstIdx]],
@@ -545,13 +554,11 @@ function runHeptaOktaStrategy(
 
 		// Create fresh config for this strategy - completely isolated
 		// Use Valks from config since they're free (price=0) and reflect realistic gameplay
-		// NOTE: startLevel fixed at 0 for standardized hepta/okta cost comparison
-		// (unlike restoration strategy which respects user's starting level)
 		const simConfig: SimulationConfig = {
 			...config,
-			startLevel: 0,
-			startHepta: 0,
-			startOkta: 0,
+			startLevel: config.startLevel,
+			startHepta: config.startHepta,
+			startOkta: config.startOkta,
 			restorationFrom: 6, // Fixed at VI for hepta/okta comparison
 			useHepta,
 			useOkta,

@@ -3,6 +3,8 @@ export { AwakeningEngine } from './simulator'
 
 // Types
 export type {
+	ExquisiteRecipe,
+	GameSettings,
 	HeptaOktaStrategyResult,
 	MarketPrices,
 	ModuleInfo,
@@ -14,7 +16,7 @@ export type {
 } from './types'
 
 // Type utilities
-export { DEFAULT_CONFIG, getRestorationAttemptCost, MODULES } from './types'
+export { DEFAULT_CONFIG, DEFAULT_GAME_SETTINGS, getRestorationAttemptCost, MODULES } from './types'
 
 // Configuration
 export {

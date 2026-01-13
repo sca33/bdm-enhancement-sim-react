@@ -10,23 +10,15 @@
  */
 
 import {
-	ANVIL_THRESHOLDS,
-	EXQUISITE_BLACK_CRYSTAL_RECIPE,
-	HEPTA_OKTA_ANVIL_PITY,
-	HEPTA_OKTA_CRYSTALS_PER_ATTEMPT,
-	HEPTA_OKTA_SUCCESS_RATE,
-	HEPTA_SUB_ENHANCEMENTS,
-	OKTA_SUB_ENHANCEMENTS,
-	RATE_CACHE,
-	RATE_CACHE_VALKS_10,
-	RATE_CACHE_VALKS_50,
-	RATE_CACHE_VALKS_100,
 	RESTORATION_MARKET_BUNDLE_SIZE,
 	RESTORATION_PER_ATTEMPT,
 	RESTORATION_SUCCESS_RATE,
+	VALKS_MULTIPLIER_10,
+	VALKS_MULTIPLIER_50,
+	VALKS_MULTIPLIER_100,
 } from './config'
-import type { SimulationConfig, SimulationResult, StepResult } from './types'
-import { getRestorationAttemptCost } from './types'
+import type { ExquisiteRecipe, SimulationConfig, SimulationResult, StepResult } from './types'
+import { DEFAULT_GAME_SETTINGS, getRestorationAttemptCost } from './types'
 
 /** Seeded random number generator (Mulberry32) */
 function createRng(seed?: number) {
@@ -78,6 +70,22 @@ export class AwakeningEngine {
 	private readonly restorationAttemptCost: number
 	private readonly exquisiteCost: number
 
+	// Cached game settings for performance
+	private readonly enhancementRates: Record<number, number>
+	private readonly anvilThresholds: Record<number, number>
+	private readonly heptaSubEnhancements: number
+	private readonly oktaSubEnhancements: number
+	private readonly heptaOktaSuccessRate: number
+	private readonly heptaOktaAnvilPity: number
+	private readonly heptaOktaCrystalsPerAttempt: number
+	private readonly exquisiteRecipe: ExquisiteRecipe
+
+	// Pre-computed rate caches with valks
+	private readonly rateCache: Record<number, number>
+	private readonly rateCacheValks10: Record<number, number>
+	private readonly rateCacheValks50: Record<number, number>
+	private readonly rateCacheValks100: Record<number, number>
+
 	constructor(config: SimulationConfig, seed?: number) {
 		this.config = config
 		this.rng = createRng(seed)
@@ -99,14 +107,46 @@ export class AwakeningEngine {
 		this.valks100Price = prices.valks100Price
 		this.restorationAttemptCost = getRestorationAttemptCost(prices.restorationBundlePrice)
 
-		// Pre-compute exquisite crystal cost
+		// Cache game settings (use custom or defaults)
+		const gs = config.gameSettings ?? DEFAULT_GAME_SETTINGS
+		this.enhancementRates = gs.enhancementRates
+		this.anvilThresholds = gs.anvilThresholds
+		this.heptaSubEnhancements = gs.heptaSubEnhancements
+		this.oktaSubEnhancements = gs.oktaSubEnhancements
+		this.heptaOktaSuccessRate = gs.heptaOktaSuccessRate
+		this.heptaOktaAnvilPity = gs.heptaOktaAnvilPity
+		this.heptaOktaCrystalsPerAttempt = gs.heptaOktaCrystalsPerAttempt
+		this.exquisiteRecipe = gs.exquisiteRecipe
+
+		// Build rate caches from game settings
+		this.rateCache = { ...this.enhancementRates }
+		this.rateCacheValks10 = Object.fromEntries(
+			Object.entries(this.enhancementRates).map(([level, rate]) => [
+				Number(level),
+				Math.min(1.0, rate * VALKS_MULTIPLIER_10),
+			]),
+		)
+		this.rateCacheValks50 = Object.fromEntries(
+			Object.entries(this.enhancementRates).map(([level, rate]) => [
+				Number(level),
+				Math.min(1.0, rate * VALKS_MULTIPLIER_50),
+			]),
+		)
+		this.rateCacheValks100 = Object.fromEntries(
+			Object.entries(this.enhancementRates).map(([level, rate]) => [
+				Number(level),
+				Math.min(1.0, rate * VALKS_MULTIPLIER_100),
+			]),
+		)
+
+		// Pre-compute exquisite crystal cost using custom recipe
 		this.exquisiteCost =
 			Math.floor(
-				(EXQUISITE_BLACK_CRYSTAL_RECIPE.restorationScrolls * prices.restorationBundlePrice) /
+				(this.exquisiteRecipe.restorationScrolls * prices.restorationBundlePrice) /
 					RESTORATION_MARKET_BUNDLE_SIZE,
 			) +
-			EXQUISITE_BLACK_CRYSTAL_RECIPE.valks100 * prices.valks100Price +
-			EXQUISITE_BLACK_CRYSTAL_RECIPE.pristineBlackCrystal * prices.crystalPrice
+			this.exquisiteRecipe.valks100 * prices.valks100Price +
+			this.exquisiteRecipe.pristineBlackCrystal * prices.crystalPrice
 
 		this.reset()
 	}
@@ -182,7 +222,7 @@ export class AwakeningEngine {
 		return (
 			(this.useHepta || this.heptaProgress > 0) &&
 			this.level === 7 &&
-			this.heptaProgress < HEPTA_SUB_ENHANCEMENTS
+			this.heptaProgress < this.heptaSubEnhancements
 		)
 	}
 
@@ -190,7 +230,7 @@ export class AwakeningEngine {
 		return (
 			(this.useOkta || this.oktaProgress > 0) &&
 			this.level === 8 &&
-			this.oktaProgress < OKTA_SUB_ENHANCEMENTS
+			this.oktaProgress < this.oktaSubEnhancements
 		)
 	}
 
@@ -214,17 +254,17 @@ export class AwakeningEngine {
 		const pathName = isOkta ? 'Okta' : 'Hepta'
 		const currentProgress = isOkta ? this.oktaProgress : this.heptaProgress
 		const currentPity = isOkta ? this.oktaPity : this.heptaPity
-		const maxProgress = isOkta ? OKTA_SUB_ENHANCEMENTS : HEPTA_SUB_ENHANCEMENTS
+		const maxProgress = isOkta ? this.oktaSubEnhancements : this.heptaSubEnhancements
 
 		// Cost tracking
-		this.exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
-		this.silver += this.exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+		this.exquisiteCrystals += this.heptaOktaCrystalsPerAttempt
+		this.silver += this.exquisiteCost * this.heptaOktaCrystalsPerAttempt
 		this.attempts++
 
 		// Check anvil pity
-		const anvilTriggered = currentPity >= HEPTA_OKTA_ANVIL_PITY
+		const anvilTriggered = currentPity >= this.heptaOktaAnvilPity
 
-		if (anvilTriggered || this.rng() < HEPTA_OKTA_SUCCESS_RATE) {
+		if (anvilTriggered || this.rng() < this.heptaOktaSuccessRate) {
 			// Success
 			if (isOkta) {
 				this.oktaProgress++
@@ -300,20 +340,20 @@ export class AwakeningEngine {
 
 		if (this.valks100From > 0 && nextLevel >= this.valks100From) {
 			valksType = '100'
-			baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+			baseRate = this.rateCacheValks100[nextLevel] ?? 0.01
 		} else if (this.valks50From > 0 && nextLevel >= this.valks50From) {
 			valksType = '50'
-			baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+			baseRate = this.rateCacheValks50[nextLevel] ?? 0.01
 		} else if (this.valks10From > 0 && nextLevel >= this.valks10From) {
 			valksType = '10'
-			baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+			baseRate = this.rateCacheValks10[nextLevel] ?? 0.01
 		} else {
-			baseRate = RATE_CACHE[nextLevel] ?? 0.01
+			baseRate = this.rateCache[nextLevel] ?? 0.01
 		}
 
 		// Check anvil pity
 		const currentEnergy = this.anvilEnergy[nextLevel] ?? 0
-		const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+		const maxEnergy = this.anvilThresholds[nextLevel] ?? 999
 		const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
 
 		// Resource tracking
@@ -438,6 +478,17 @@ export class AwakeningEngine {
 		const restorationCost = this.restorationAttemptCost
 		const exquisiteCost = this.exquisiteCost
 
+		// Cache game settings locally
+		const heptaSubEnhancements = this.heptaSubEnhancements
+		const oktaSubEnhancements = this.oktaSubEnhancements
+		const heptaOktaSuccessRate = this.heptaOktaSuccessRate
+		const heptaOktaAnvilPity = this.heptaOktaAnvilPity
+		const rateCache = this.rateCache
+		const rateCacheValks10 = this.rateCacheValks10
+		const rateCacheValks50 = this.rateCacheValks50
+		const rateCacheValks100 = this.rateCacheValks100
+		const anvilThresholds = this.anvilThresholds
+
 		let crystals = 0
 		let scrolls = 0
 		let silver = 0
@@ -453,18 +504,14 @@ export class AwakeningEngine {
 
 		while (level < targetLevel) {
 			// Check Hepta path
-			if (
-				(useHepta || heptaProgress > 0) &&
-				level === 7 &&
-				heptaProgress < HEPTA_SUB_ENHANCEMENTS
-			) {
-				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
-				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+			if ((useHepta || heptaProgress > 0) && level === 7 && heptaProgress < heptaSubEnhancements) {
+				exquisiteCrystals += this.heptaOktaCrystalsPerAttempt
+				silver += exquisiteCost * this.heptaOktaCrystalsPerAttempt
 
-				if (heptaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+				if (heptaPity >= heptaOktaAnvilPity || rng() < heptaOktaSuccessRate) {
 					heptaProgress++
 					heptaPity = 0
-					if (heptaProgress >= HEPTA_SUB_ENHANCEMENTS) {
+					if (heptaProgress >= heptaSubEnhancements) {
 						level = 8
 						anvilEnergy[8] = 0
 						heptaProgress = 0
@@ -476,14 +523,14 @@ export class AwakeningEngine {
 			}
 
 			// Check Okta path
-			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < OKTA_SUB_ENHANCEMENTS) {
-				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
-				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < oktaSubEnhancements) {
+				exquisiteCrystals += this.heptaOktaCrystalsPerAttempt
+				silver += exquisiteCost * this.heptaOktaCrystalsPerAttempt
 
-				if (oktaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+				if (oktaPity >= heptaOktaAnvilPity || rng() < heptaOktaSuccessRate) {
 					oktaProgress++
 					oktaPity = 0
-					if (oktaProgress >= OKTA_SUB_ENHANCEMENTS) {
+					if (oktaProgress >= oktaSubEnhancements) {
 						level = 9
 						anvilEnergy[9] = 0
 						oktaProgress = 0
@@ -501,19 +548,19 @@ export class AwakeningEngine {
 			// Priority: 100 > 50 > 10 (use highest available)
 			let baseRate: number
 			if (valks100From > 0 && nextLevel >= valks100From) {
-				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+				baseRate = rateCacheValks100[nextLevel] ?? 0.01
 				silver += valks100Price
 				valks100Used++
 			} else if (valks50From > 0 && nextLevel >= valks50From) {
-				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+				baseRate = rateCacheValks50[nextLevel] ?? 0.01
 				silver += valks50Price
 				valks50Used++
 			} else if (valks10From > 0 && nextLevel >= valks10From) {
-				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+				baseRate = rateCacheValks10[nextLevel] ?? 0.01
 				silver += valks10Price
 				valks10Used++
 			} else {
-				baseRate = RATE_CACHE[nextLevel] ?? 0.01
+				baseRate = rateCache[nextLevel] ?? 0.01
 			}
 
 			crystals++
@@ -521,7 +568,7 @@ export class AwakeningEngine {
 
 			// Check anvil pity
 			const currentEnergy = anvilEnergy[nextLevel] ?? 0
-			const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+			const maxEnergy = anvilThresholds[nextLevel] ?? 999
 			const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
 
 			if (anvilTriggered || rng() < baseRate) {
@@ -575,6 +622,17 @@ export class AwakeningEngine {
 		const restorationCost = this.restorationAttemptCost
 		const exquisiteCost = this.exquisiteCost
 
+		// Cache game settings locally
+		const heptaSubEnhancements = this.heptaSubEnhancements
+		const oktaSubEnhancements = this.oktaSubEnhancements
+		const heptaOktaSuccessRate = this.heptaOktaSuccessRate
+		const heptaOktaAnvilPity = this.heptaOktaAnvilPity
+		const rateCache = this.rateCache
+		const rateCacheValks10 = this.rateCacheValks10
+		const rateCacheValks50 = this.rateCacheValks50
+		const rateCacheValks100 = this.rateCacheValks100
+		const anvilThresholds = this.anvilThresholds
+
 		// Resource limits (undefined = unlimited)
 		const maxCrystals = limits.crystals
 		const maxScrolls = limits.scrolls
@@ -597,18 +655,14 @@ export class AwakeningEngine {
 
 		while (level < targetLevel) {
 			// Check Hepta path
-			if (
-				(useHepta || heptaProgress > 0) &&
-				level === 7 &&
-				heptaProgress < HEPTA_SUB_ENHANCEMENTS
-			) {
-				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
-				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+			if ((useHepta || heptaProgress > 0) && level === 7 && heptaProgress < heptaSubEnhancements) {
+				exquisiteCrystals += this.heptaOktaCrystalsPerAttempt
+				silver += exquisiteCost * this.heptaOktaCrystalsPerAttempt
 
-				if (heptaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+				if (heptaPity >= heptaOktaAnvilPity || rng() < heptaOktaSuccessRate) {
 					heptaProgress++
 					heptaPity = 0
-					if (heptaProgress >= HEPTA_SUB_ENHANCEMENTS) {
+					if (heptaProgress >= heptaSubEnhancements) {
 						level = 8
 						anvilEnergy[8] = 0
 						heptaProgress = 0
@@ -620,14 +674,14 @@ export class AwakeningEngine {
 			}
 
 			// Check Okta path
-			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < OKTA_SUB_ENHANCEMENTS) {
-				exquisiteCrystals += HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
-				silver += exquisiteCost * HEPTA_OKTA_CRYSTALS_PER_ATTEMPT
+			if ((useOkta || oktaProgress > 0) && level === 8 && oktaProgress < oktaSubEnhancements) {
+				exquisiteCrystals += this.heptaOktaCrystalsPerAttempt
+				silver += exquisiteCost * this.heptaOktaCrystalsPerAttempt
 
-				if (oktaPity >= HEPTA_OKTA_ANVIL_PITY || rng() < HEPTA_OKTA_SUCCESS_RATE) {
+				if (oktaPity >= heptaOktaAnvilPity || rng() < heptaOktaSuccessRate) {
 					oktaProgress++
 					oktaPity = 0
-					if (oktaProgress >= OKTA_SUB_ENHANCEMENTS) {
+					if (oktaProgress >= oktaSubEnhancements) {
 						level = 9
 						anvilEnergy[9] = 0
 						oktaProgress = 0
@@ -643,7 +697,16 @@ export class AwakeningEngine {
 
 			// Check crystal limit before attempting
 			if (maxCrystals !== undefined && crystals >= maxCrystals) {
-				return [crystals, scrolls, silver, exquisiteCrystals, valks10Used, valks50Used, valks100Used, 0]
+				return [
+					crystals,
+					scrolls,
+					silver,
+					exquisiteCrystals,
+					valks10Used,
+					valks50Used,
+					valks100Used,
+					0,
+				]
 			}
 
 			// Determine valks type - priority based (only ONE type per attempt)
@@ -666,19 +729,19 @@ export class AwakeningEngine {
 			}
 
 			if (canUseValks100) {
-				baseRate = RATE_CACHE_VALKS_100[nextLevel] ?? 0.01
+				baseRate = rateCacheValks100[nextLevel] ?? 0.01
 				silver += valks100Price
 				valks100Used++
 			} else if (canUseValks50) {
-				baseRate = RATE_CACHE_VALKS_50[nextLevel] ?? 0.01
+				baseRate = rateCacheValks50[nextLevel] ?? 0.01
 				silver += valks50Price
 				valks50Used++
 			} else if (canUseValks10) {
-				baseRate = RATE_CACHE_VALKS_10[nextLevel] ?? 0.01
+				baseRate = rateCacheValks10[nextLevel] ?? 0.01
 				silver += valks10Price
 				valks10Used++
 			} else {
-				baseRate = RATE_CACHE[nextLevel] ?? 0.01
+				baseRate = rateCache[nextLevel] ?? 0.01
 			}
 
 			crystals++
@@ -686,7 +749,7 @@ export class AwakeningEngine {
 
 			// Check anvil pity
 			const currentEnergy = anvilEnergy[nextLevel] ?? 0
-			const maxEnergy = ANVIL_THRESHOLDS[nextLevel] ?? 999
+			const maxEnergy = anvilThresholds[nextLevel] ?? 999
 			const anvilTriggered = currentEnergy >= maxEnergy && maxEnergy > 0
 
 			if (anvilTriggered || rng() < baseRate) {

@@ -2,8 +2,8 @@ import type { MarketPrices, SimulationConfig } from '@bdm-sim/simulator'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
 	HeptaOktaResult,
-	RestorationResult,
 	ResourceLimits,
+	RestorationResult,
 	StrategyRequest,
 	StrategyResponse,
 } from '../workers/strategy.worker'

@@ -1,4 +1,16 @@
-import { DEFAULT_PRICES, RESTORATION_MARKET_BUNDLE_SIZE, RESTORATION_PER_ATTEMPT } from './config'
+import {
+	ANVIL_THRESHOLDS,
+	DEFAULT_PRICES,
+	ENHANCEMENT_RATES,
+	EXQUISITE_BLACK_CRYSTAL_RECIPE,
+	HEPTA_OKTA_ANVIL_PITY,
+	HEPTA_OKTA_CRYSTALS_PER_ATTEMPT,
+	HEPTA_OKTA_SUCCESS_RATE,
+	HEPTA_SUB_ENHANCEMENTS,
+	OKTA_SUB_ENHANCEMENTS,
+	RESTORATION_MARKET_BUNDLE_SIZE,
+	RESTORATION_PER_ATTEMPT,
+} from './config'
 
 /** Market prices configuration */
 export interface MarketPrices {
@@ -28,6 +40,7 @@ export interface SimulationConfig {
 	valks50From: number // 0 = never use
 	valks100From: number // 0 = never use
 	prices: MarketPrices
+	gameSettings?: GameSettings // Optional custom game settings
 }
 
 /** Default simulation configuration */
@@ -147,3 +160,38 @@ export const MODULES: ModuleInfo[] = [
 		implemented: false,
 	},
 ]
+
+/** Exquisite Black Crystal recipe */
+export interface ExquisiteRecipe {
+	restorationScrolls: number
+	valks100: number
+	pristineBlackCrystal: number
+}
+
+/** Game settings - customizable rates, recipes, and mechanics */
+export interface GameSettings {
+	// Enhancement rates per level (1-10)
+	enhancementRates: Record<number, number>
+	// Anvil pity thresholds per level (1-10)
+	anvilThresholds: Record<number, number>
+	// Hepta/Okta settings
+	heptaSubEnhancements: number
+	oktaSubEnhancements: number
+	heptaOktaSuccessRate: number
+	heptaOktaAnvilPity: number
+	heptaOktaCrystalsPerAttempt: number
+	// Compound item recipes
+	exquisiteRecipe: ExquisiteRecipe
+}
+
+/** Default game settings from config */
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+	enhancementRates: { ...ENHANCEMENT_RATES },
+	anvilThresholds: { ...ANVIL_THRESHOLDS },
+	heptaSubEnhancements: HEPTA_SUB_ENHANCEMENTS,
+	oktaSubEnhancements: OKTA_SUB_ENHANCEMENTS,
+	heptaOktaSuccessRate: HEPTA_OKTA_SUCCESS_RATE,
+	heptaOktaAnvilPity: HEPTA_OKTA_ANVIL_PITY,
+	heptaOktaCrystalsPerAttempt: HEPTA_OKTA_CRYSTALS_PER_ATTEMPT,
+	exquisiteRecipe: { ...EXQUISITE_BLACK_CRYSTAL_RECIPE },
+}

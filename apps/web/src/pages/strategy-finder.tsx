@@ -23,12 +23,12 @@ import {
 } from '@/components/ui'
 import { useStore } from '@/hooks/use-store'
 import { useStrategyWorker } from '@/hooks/use-strategy-worker'
+import { formatNumber, formatSilver } from '@/lib/utils'
 import type {
 	DistributionData,
 	ResourceLimits,
 	SurvivalCurvePoint,
 } from '@/workers/strategy.worker'
-import { formatNumber, formatSilver } from '@/lib/utils'
 
 type Tab = 'restoration' | 'hepta-okta'
 
@@ -61,7 +61,7 @@ export function StrategyFinderPage() {
 					onClick={() => setActiveTab('hepta-okta')}
 					className={activeTab === 'hepta-okta' ? '' : 'text-muted-foreground'}
 				>
-					Hepta/Okta (Legacy)
+					Hepta/Okta Strategy
 				</Button>
 			</div>
 
@@ -93,7 +93,11 @@ function RestorationStrategyTab({
 
 	// Local state for strategy configuration
 	const [startLevel, setStartLevel] = useState(0)
+	const [startHepta, setStartHepta] = useState(0)
+	const [startOkta, setStartOkta] = useState(0)
 	const [targetLevel, setTargetLevel] = useState(config.targetLevel)
+	const [useHepta, setUseHepta] = useState(false)
+	const [useOkta, setUseOkta] = useState(false)
 	const [resources, setResources] = useState<ResourceLimits>({
 		crystals: 1000,
 		crystalsUnlimited: true,
@@ -116,6 +120,7 @@ function RestorationStrategyTab({
 				crystals: number
 				scrolls: number
 				silver: number
+				exquisite: number
 				valks10: number
 				valks50: number
 				valks100: number
@@ -124,6 +129,7 @@ function RestorationStrategyTab({
 				crystals: number
 				scrolls: number
 				silver: number
+				exquisite: number
 				valks10: number
 				valks50: number
 				valks100: number
@@ -132,6 +138,7 @@ function RestorationStrategyTab({
 				crystals: number
 				scrolls: number
 				silver: number
+				exquisite: number
 				valks10: number
 				valks50: number
 				valks100: number
@@ -180,7 +187,11 @@ function RestorationStrategyTab({
 			const strategyConfig = {
 				...DEFAULT_CONFIG,
 				startLevel,
+				startHepta: startLevel === 7 ? startHepta : 0,
+				startOkta: startLevel === 8 ? startOkta : 0,
 				targetLevel,
+				useHepta,
+				useOkta,
 				prices: DEFAULT_PRICES,
 			}
 
@@ -255,6 +266,69 @@ function RestorationStrategyTab({
 									))}
 								</SelectContent>
 							</Select>
+						</div>
+					</div>
+
+					{/* Hepta Progress (when starting at +VII) */}
+					{startLevel === 7 && (
+						<div>
+							<label className="text-xs text-muted-foreground">Start Hepta Progress</label>
+							<Select value={String(startHepta)} onValueChange={(v) => setStartHepta(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[0, 1, 2, 3, 4].map((p) => (
+										<SelectItem key={p} value={String(p)}>
+											{p}/{HEPTA_SUB_ENHANCEMENTS}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+
+					{/* Okta Progress (when starting at +VIII) */}
+					{startLevel === 8 && (
+						<div>
+							<label className="text-xs text-muted-foreground">Start Okta Progress</label>
+							<Select value={String(startOkta)} onValueChange={(v) => setStartOkta(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => (
+										<SelectItem key={p} value={String(p)}>
+											{p}/{OKTA_SUB_ENHANCEMENTS}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+
+					{/* Hepta/Okta Checkboxes */}
+					<div className="pt-2 border-t">
+						<p className="text-xs font-medium mb-2">Hepta/Okta Failsafe (Exquisite Crystals)</p>
+						<div className="space-y-2">
+							<label className="flex items-center gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={useHepta}
+									onChange={(e) => setUseHepta(e.target.checked)}
+									className="w-4 h-4 rounded border-input"
+								/>
+								<span className="text-sm">Use Hepta for VII→VIII ({HEPTA_SUB_ENHANCEMENTS} subs)</span>
+							</label>
+							<label className="flex items-center gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={useOkta}
+									onChange={(e) => setUseOkta(e.target.checked)}
+									className="w-4 h-4 rounded border-input"
+								/>
+								<span className="text-sm">Use Okta for VIII→IX ({OKTA_SUB_ENHANCEMENTS} subs)</span>
+							</label>
 						</div>
 					</div>
 
@@ -688,6 +762,12 @@ function HeptaOktaStrategyTab({
 	const { config } = useStore()
 	const { runHeptaOktaStrategy, heptaOktaProgress, isHeptaOktaRunning } = useStrategyWorker()
 
+	// Local state for strategy configuration
+	const [startLevel, setStartLevel] = useState(0)
+	const [startHepta, setStartHepta] = useState(0)
+	const [startOkta, setStartOkta] = useState(0)
+	const [targetLevel, setTargetLevel] = useState(config.targetLevel)
+
 	const [results, setResults] = useState<
 		Array<{
 			useHepta: boolean
@@ -715,7 +795,7 @@ function HeptaOktaStrategyTab({
 		})
 	}
 
-	// Default unlimited resources for legacy hepta/okta analysis
+	// Default unlimited resources for hepta/okta analysis
 	const defaultResources: ResourceLimits = {
 		crystals: 0,
 		crystalsUnlimited: true,
@@ -733,7 +813,10 @@ function HeptaOktaStrategyTab({
 		try {
 			const strategyConfig = {
 				...DEFAULT_CONFIG,
-				targetLevel: config.targetLevel,
+				startLevel,
+				startHepta: startLevel === 7 ? startHepta : 0,
+				startOkta: startLevel === 8 ? startOkta : 0,
+				targetLevel,
 				prices: DEFAULT_PRICES,
 			}
 
@@ -749,28 +832,96 @@ function HeptaOktaStrategyTab({
 		}
 	}
 
+	// Ensure startLevel < targetLevel when target changes
+	useEffect(() => {
+		if (startLevel >= targetLevel) {
+			setStartLevel(Math.max(0, targetLevel - 1))
+		}
+		// Only react to targetLevel changes - startLevel adjustment is a side effect
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [targetLevel])
+
 	return (
 		<div className="space-y-4">
-			{/* Legacy Notice */}
-			<Card className="border-warning/50 bg-warning/5">
-				<CardContent className="py-3 text-xs text-warning">
-					This strategy finder is a legacy tool. For most use cases, the Restoration Strategy finder
-					above is recommended.
-				</CardContent>
-			</Card>
-
 			{/* Configuration */}
 			<Card>
 				<CardHeader className="py-3">
-					<CardTitle className="text-sm">Configuration</CardTitle>
+					<CardTitle className="text-sm">Strategy Configuration</CardTitle>
 				</CardHeader>
-				<CardContent className="space-y-3">
-					<div>
-						<label className="text-xs text-muted-foreground">Target Level</label>
-						<div className="mt-1 h-9 px-3 rounded-md border bg-muted/50 flex items-center text-sm">
-							+{ROMAN_NUMERALS[config.targetLevel]} (uses simulator config)
+				<CardContent className="space-y-4">
+					{/* Target & Start Level */}
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<label className="text-xs text-muted-foreground">Start Level</label>
+							<Select value={String(startLevel)} onValueChange={(v) => setStartLevel(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((level) => (
+										<SelectItem key={level} value={String(level)} disabled={level >= targetLevel}>
+											+{ROMAN_NUMERALS[level]} ({level})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<label className="text-xs text-muted-foreground">Target Level</label>
+							<Select value={String(targetLevel)} onValueChange={(v) => setTargetLevel(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
+										<SelectItem key={level} value={String(level)}>
+											+{ROMAN_NUMERALS[level]} ({level})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 					</div>
+
+					{/* Hepta Progress (when starting at +VII) */}
+					{startLevel === 7 && (
+						<div>
+							<label className="text-xs text-muted-foreground">Start Hepta Progress</label>
+							<Select value={String(startHepta)} onValueChange={(v) => setStartHepta(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[0, 1, 2, 3, 4].map((p) => (
+										<SelectItem key={p} value={String(p)}>
+											{p}/{HEPTA_SUB_ENHANCEMENTS}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+
+					{/* Okta Progress (when starting at +VIII) */}
+					{startLevel === 8 && (
+						<div>
+							<label className="text-xs text-muted-foreground">Start Okta Progress</label>
+							<Select value={String(startOkta)} onValueChange={(v) => setStartOkta(Number(v))}>
+								<SelectTrigger className="mt-1">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => (
+										<SelectItem key={p} value={String(p)}>
+											{p}/{OKTA_SUB_ENHANCEMENTS}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+
+					{/* Simulations */}
 					<div>
 						<label className="text-xs text-muted-foreground">Simulations per strategy</label>
 						<input
@@ -812,9 +963,10 @@ function HeptaOktaStrategyTab({
 			{results.length > 0 && (
 				<Card>
 					<CardHeader className="py-3">
-						<CardTitle className="text-sm">Results by Strategy</CardTitle>
+						<CardTitle className="text-sm">Strategy Comparison</CardTitle>
 						<p className="text-xs text-muted-foreground">
-							Sorted by median (P50) silver cost | Restoration fixed at +VI
+							+{ROMAN_NUMERALS[startLevel]} → +{ROMAN_NUMERALS[targetLevel]} | Sorted by median
+							(P50) silver cost | Restoration fixed at +VI
 						</p>
 					</CardHeader>
 					<CardContent className="p-0">

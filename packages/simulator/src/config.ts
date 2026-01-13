@@ -58,8 +58,8 @@ export const OKTA_SUB_ENHANCEMENTS = 10
 /** Hepta/Okta anvil pity (17 failures = guaranteed success) */
 export const HEPTA_OKTA_ANVIL_PITY = 17
 
-/** Exquisite Black Crystals per Hepta/Okta attempt */
-export const HEPTA_OKTA_CRYSTALS_PER_ATTEMPT = 15
+/** Exquisite Black Crystals per Hepta/Okta attempt (was 30, then 15, now 7) */
+export const HEPTA_OKTA_CRYSTALS_PER_ATTEMPT = 7
 
 /** Exquisite Black Crystal crafting recipe */
 export const EXQUISITE_BLACK_CRYSTAL_RECIPE = {

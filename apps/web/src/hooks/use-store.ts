@@ -1,7 +1,9 @@
 import {
 	AwakeningEngine,
 	DEFAULT_CONFIG,
+	DEFAULT_GAME_SETTINGS,
 	DEFAULT_PRICES,
+	type GameSettings,
 	type MarketPrices,
 	type SimulationConfig,
 	type SimulationResult,
@@ -12,7 +14,7 @@ import LZString from 'lz-string'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Page = 'home' | 'awakening-config' | 'simulation' | 'strategy-finder'
+export type Page = 'home' | 'awakening-config' | 'simulation' | 'strategy-finder' | 'settings'
 
 export type SimulationSpeed = 'instant' | 'fast' | 'regular'
 
@@ -71,6 +73,13 @@ interface AppState {
 	// Market prices (persisted)
 	prices: MarketPrices
 	setPrice: <K extends keyof MarketPrices>(key: K, value: number) => void
+
+	// Game settings (persisted)
+	gameSettings: GameSettings
+	setGameSettings: (partial: Partial<GameSettings>) => void
+	setEnhancementRate: (level: number, rate: number) => void
+	setAnvilThreshold: (level: number, threshold: number) => void
+	resetGameSettings: () => void
 
 	// Simulation config
 	config: SimulationConfig
@@ -168,6 +177,28 @@ export const useStore = create<AppState>()(
 				set((state) => ({
 					prices: { ...state.prices, [key]: value },
 				})),
+
+			// Game settings
+			gameSettings: { ...DEFAULT_GAME_SETTINGS },
+			setGameSettings: (partial) =>
+				set((state) => ({
+					gameSettings: { ...state.gameSettings, ...partial },
+				})),
+			setEnhancementRate: (level, rate) =>
+				set((state) => ({
+					gameSettings: {
+						...state.gameSettings,
+						enhancementRates: { ...state.gameSettings.enhancementRates, [level]: rate },
+					},
+				})),
+			setAnvilThreshold: (level, threshold) =>
+				set((state) => ({
+					gameSettings: {
+						...state.gameSettings,
+						anvilThresholds: { ...state.gameSettings.anvilThresholds, [level]: threshold },
+					},
+				})),
+			resetGameSettings: () => set({ gameSettings: { ...DEFAULT_GAME_SETTINGS } }),
 
 			// Simulation config
 			config: { ...DEFAULT_CONFIG },
@@ -276,6 +307,7 @@ export const useStore = create<AppState>()(
 				const configWithPrices: SimulationConfig = {
 					...state.config,
 					prices: state.prices,
+					gameSettings: state.gameSettings,
 				}
 				const engine = new AwakeningEngine(configWithPrices)
 
@@ -497,10 +529,11 @@ export const useStore = create<AppState>()(
 		}),
 		{
 			name: 'bdm-sim-storage',
-			version: 2, // Increment when schema changes
+			version: 3, // Increment when schema changes
 			partialize: (state) => ({
 				prices: state.prices,
 				config: state.config,
+				gameSettings: state.gameSettings,
 				numSimulations: state.numSimulations,
 				buildVersion: CURRENT_BUILD_VERSION,
 			}),
@@ -517,6 +550,7 @@ export const useStore = create<AppState>()(
 						...currentState,
 						prices: { ...DEFAULT_PRICES },
 						config: { ...DEFAULT_CONFIG },
+						gameSettings: { ...DEFAULT_GAME_SETTINGS },
 					}
 				}
 
@@ -524,6 +558,23 @@ export const useStore = create<AppState>()(
 					...currentState,
 					prices: { ...DEFAULT_PRICES, ...persisted.prices },
 					config: { ...DEFAULT_CONFIG, ...persisted.config },
+					gameSettings: {
+						...DEFAULT_GAME_SETTINGS,
+						...persisted.gameSettings,
+						// Deep merge nested objects
+						enhancementRates: {
+							...DEFAULT_GAME_SETTINGS.enhancementRates,
+							...persisted.gameSettings?.enhancementRates,
+						},
+						anvilThresholds: {
+							...DEFAULT_GAME_SETTINGS.anvilThresholds,
+							...persisted.gameSettings?.anvilThresholds,
+						},
+						exquisiteRecipe: {
+							...DEFAULT_GAME_SETTINGS.exquisiteRecipe,
+							...persisted.gameSettings?.exquisiteRecipe,
+						},
+					},
 					numSimulations: persisted.numSimulations ?? currentState.numSimulations,
 				}
 			},

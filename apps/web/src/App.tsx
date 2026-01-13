@@ -1,7 +1,13 @@
 import { ErrorBoundary } from '@/components/error-boundary'
-import { Settings } from '@/components/settings'
+import { Settings as SettingsToggle } from '@/components/settings'
 import { useStore } from '@/hooks/use-store'
-import { AwakeningConfigPage, HomePage, SimulationPage, StrategyFinderPage } from '@/pages'
+import {
+	AwakeningConfigPage,
+	HomePage,
+	SettingsPage,
+	SimulationPage,
+	StrategyFinderPage,
+} from '@/pages'
 
 function AppContent() {
 	const currentPage = useStore((s) => s.currentPage)
@@ -16,6 +22,8 @@ function AppContent() {
 				return <SimulationPage />
 			case 'strategy-finder':
 				return <StrategyFinderPage />
+			case 'settings':
+				return <SettingsPage />
 			default:
 				return <HomePage />
 		}
@@ -32,7 +40,7 @@ function AppContent() {
 					<h1 className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
 						BDM Enhancement Simulator
 					</h1>
-					<Settings />
+					<SettingsToggle />
 				</div>
 			</header>
 
