@@ -1,6 +1,7 @@
 import {
 	ANVIL_THRESHOLDS,
 	DEFAULT_PRICES,
+	ENHANCEMENT_COST_PER_ATTEMPT,
 	ENHANCEMENT_RATES,
 	EXQUISITE_BLACK_CRYSTAL_RECIPE,
 	HEPTA_OKTA_ANVIL_PITY,
@@ -182,6 +183,8 @@ export interface GameSettings {
 	heptaOktaCrystalsPerAttempt: number
 	// Compound item recipes
 	exquisiteRecipe: ExquisiteRecipe
+	// Base enhancement cost per attempt (silver)
+	enhancementCostPerAttempt: number
 }
 
 /** Default game settings from config */
@@ -194,4 +197,5 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
 	heptaOktaAnvilPity: HEPTA_OKTA_ANVIL_PITY,
 	heptaOktaCrystalsPerAttempt: HEPTA_OKTA_CRYSTALS_PER_ATTEMPT,
 	exquisiteRecipe: { ...EXQUISITE_BLACK_CRYSTAL_RECIPE },
+	enhancementCostPerAttempt: ENHANCEMENT_COST_PER_ATTEMPT,
 }

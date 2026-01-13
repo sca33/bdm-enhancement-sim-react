@@ -211,37 +211,26 @@ export type StrategyRequest =
 	  }
 
 // Response types
+// Percentile data structure
+export type PercentileData = {
+	crystals: number
+	scrolls: number
+	silver: number
+	exquisite: number
+	valks10: number
+	valks50: number
+	valks100: number
+}
+
 export type RestorationResult = {
 	restorationFrom: number
 	label: string
 	successRate: number // % of simulations that reached target
-	p50: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
-	p90: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
-	worst: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
+	p50: PercentileData
+	p75: PercentileData
+	p90: PercentileData
+	p99: PercentileData
+	worst: PercentileData
 	distribution: DistributionData // Distribution of successful runs
 	failedDistribution?: DistributionData // Distribution of failed runs (when resource-limited)
 	// Risk-adjusted metrics for limited resources
@@ -257,33 +246,11 @@ export type HeptaOktaResult = {
 	useOkta: boolean
 	label: string
 	successRate: number
-	p50: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
-	p90: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
-	worst: {
-		crystals: number
-		scrolls: number
-		silver: number
-		exquisite: number
-		valks10: number
-		valks50: number
-		valks100: number
-	}
+	p50: PercentileData
+	p75: PercentileData
+	p90: PercentileData
+	p99: PercentileData
+	worst: PercentileData
 	distribution: DistributionData
 	failedDistribution?: DistributionData
 	// Risk-adjusted metrics for limited resources
@@ -452,8 +419,21 @@ function runRestorationStrategy(
 
 		// Calculate percentile indices using ALL runs
 		const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+		const p75Idx = Math.min(Math.floor(numSims * 0.75), numSims - 1)
 		const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+		const p99Idx = Math.min(Math.floor(numSims * 0.99), numSims - 1)
 		const worstIdx = numSims - 1
+
+		// Helper to build percentile data
+		const getPercentileData = (idx: number): PercentileData => ({
+			crystals: crystalResults[allIndices[idx]],
+			scrolls: scrollResults[allIndices[idx]],
+			silver: silverResults[allIndices[idx]],
+			exquisite: exquisiteResults[allIndices[idx]],
+			valks10: valks10Results[allIndices[idx]],
+			valks50: valks50Results[allIndices[idx]],
+			valks100: valks100Results[allIndices[idx]],
+		})
 
 		// Generate survival curve using pre-sorted indices (only when success < 100%)
 		const survivalCurve =
@@ -470,33 +450,11 @@ function runRestorationStrategy(
 			restorationFrom: restFrom,
 			label: `+${ROMAN_NUMERALS[restFrom]}`,
 			successRate,
-			p50: {
-				crystals: crystalResults[allIndices[p50Idx]],
-				scrolls: scrollResults[allIndices[p50Idx]],
-				silver: silverResults[allIndices[p50Idx]],
-				exquisite: exquisiteResults[allIndices[p50Idx]],
-				valks10: valks10Results[allIndices[p50Idx]],
-				valks50: valks50Results[allIndices[p50Idx]],
-				valks100: valks100Results[allIndices[p50Idx]],
-			},
-			p90: {
-				crystals: crystalResults[allIndices[p90Idx]],
-				scrolls: scrollResults[allIndices[p90Idx]],
-				silver: silverResults[allIndices[p90Idx]],
-				exquisite: exquisiteResults[allIndices[p90Idx]],
-				valks10: valks10Results[allIndices[p90Idx]],
-				valks50: valks50Results[allIndices[p90Idx]],
-				valks100: valks100Results[allIndices[p90Idx]],
-			},
-			worst: {
-				crystals: crystalResults[allIndices[worstIdx]],
-				scrolls: scrollResults[allIndices[worstIdx]],
-				silver: silverResults[allIndices[worstIdx]],
-				exquisite: exquisiteResults[allIndices[worstIdx]],
-				valks10: valks10Results[allIndices[worstIdx]],
-				valks50: valks50Results[allIndices[worstIdx]],
-				valks100: valks100Results[allIndices[worstIdx]],
-			},
+			p50: getPercentileData(p50Idx),
+			p75: getPercentileData(p75Idx),
+			p90: getPercentileData(p90Idx),
+			p99: getPercentileData(p99Idx),
+			worst: getPercentileData(worstIdx),
 			distribution,
 			failedDistribution,
 			// Risk-adjusted metrics
@@ -658,8 +616,21 @@ function runHeptaOktaStrategy(
 
 		// Calculate percentile indices using ALL runs
 		const p50Idx = Math.min(Math.floor(numSims * 0.5), numSims - 1)
+		const p75Idx = Math.min(Math.floor(numSims * 0.75), numSims - 1)
 		const p90Idx = Math.min(Math.floor(numSims * 0.9), numSims - 1)
+		const p99Idx = Math.min(Math.floor(numSims * 0.99), numSims - 1)
 		const worstIdx = numSims - 1
+
+		// Helper to build percentile data
+		const getPercentileData = (idx: number): PercentileData => ({
+			crystals: crystalResults[allIndices[idx]],
+			scrolls: scrollResults[allIndices[idx]],
+			silver: silverResults[allIndices[idx]],
+			exquisite: exquisiteResults[allIndices[idx]],
+			valks10: valks10Results[allIndices[idx]],
+			valks50: valks50Results[allIndices[idx]],
+			valks100: valks100Results[allIndices[idx]],
+		})
 
 		// Generate survival curve using pre-sorted indices (only when success < 100%)
 		const survivalCurve =
@@ -677,33 +648,11 @@ function runHeptaOktaStrategy(
 			useOkta,
 			label,
 			successRate,
-			p50: {
-				crystals: crystalResults[allIndices[p50Idx]],
-				scrolls: scrollResults[allIndices[p50Idx]],
-				silver: silverResults[allIndices[p50Idx]],
-				exquisite: exquisiteResults[allIndices[p50Idx]],
-				valks10: valks10Results[allIndices[p50Idx]],
-				valks50: valks50Results[allIndices[p50Idx]],
-				valks100: valks100Results[allIndices[p50Idx]],
-			},
-			p90: {
-				crystals: crystalResults[allIndices[p90Idx]],
-				scrolls: scrollResults[allIndices[p90Idx]],
-				silver: silverResults[allIndices[p90Idx]],
-				exquisite: exquisiteResults[allIndices[p90Idx]],
-				valks10: valks10Results[allIndices[p90Idx]],
-				valks50: valks50Results[allIndices[p90Idx]],
-				valks100: valks100Results[allIndices[p90Idx]],
-			},
-			worst: {
-				crystals: crystalResults[allIndices[worstIdx]],
-				scrolls: scrollResults[allIndices[worstIdx]],
-				silver: silverResults[allIndices[worstIdx]],
-				exquisite: exquisiteResults[allIndices[worstIdx]],
-				valks10: valks10Results[allIndices[worstIdx]],
-				valks50: valks50Results[allIndices[worstIdx]],
-				valks100: valks100Results[allIndices[worstIdx]],
-			},
+			p50: getPercentileData(p50Idx),
+			p75: getPercentileData(p75Idx),
+			p90: getPercentileData(p90Idx),
+			p99: getPercentileData(p99Idx),
+			worst: getPercentileData(worstIdx),
 			distribution,
 			failedDistribution,
 			// Risk-adjusted metrics

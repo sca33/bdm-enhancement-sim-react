@@ -69,6 +69,7 @@ export class AwakeningEngine {
 	private readonly valks100Price: number
 	private readonly restorationAttemptCost: number
 	private readonly exquisiteCost: number
+	private readonly enhancementCost: number
 
 	// Cached game settings for performance
 	private readonly enhancementRates: Record<number, number>
@@ -147,6 +148,9 @@ export class AwakeningEngine {
 			) +
 			this.exquisiteRecipe.valks100 * prices.valks100Price +
 			this.exquisiteRecipe.pristineBlackCrystal * prices.crystalPrice
+
+		// Base enhancement cost per attempt
+		this.enhancementCost = gs.enhancementCostPerAttempt
 
 		this.reset()
 	}
@@ -359,7 +363,7 @@ export class AwakeningEngine {
 		// Resource tracking
 		this.attempts++
 		this.crystals++
-		this.silver += this.crystalPrice
+		this.silver += this.crystalPrice + this.enhancementCost
 
 		// Track Valks used (only ONE type per attempt)
 		if (valksType === '10') {
@@ -477,6 +481,7 @@ export class AwakeningEngine {
 		const valks100Price = this.valks100Price
 		const restorationCost = this.restorationAttemptCost
 		const exquisiteCost = this.exquisiteCost
+		const enhancementCost = this.enhancementCost
 
 		// Cache game settings locally
 		const heptaSubEnhancements = this.heptaSubEnhancements
@@ -564,7 +569,7 @@ export class AwakeningEngine {
 			}
 
 			crystals++
-			silver += crystalPrice
+			silver += crystalPrice + enhancementCost
 
 			// Check anvil pity
 			const currentEnergy = anvilEnergy[nextLevel] ?? 0
@@ -621,6 +626,7 @@ export class AwakeningEngine {
 		const valks100Price = this.valks100Price
 		const restorationCost = this.restorationAttemptCost
 		const exquisiteCost = this.exquisiteCost
+		const enhancementCost = this.enhancementCost
 
 		// Cache game settings locally
 		const heptaSubEnhancements = this.heptaSubEnhancements
@@ -745,7 +751,7 @@ export class AwakeningEngine {
 			}
 
 			crystals++
-			silver += crystalPrice
+			silver += crystalPrice + enhancementCost
 
 			// Check anvil pity
 			const currentEnergy = anvilEnergy[nextLevel] ?? 0

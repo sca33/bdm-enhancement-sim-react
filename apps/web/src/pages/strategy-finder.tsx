@@ -1,5 +1,6 @@
 import {
 	DEFAULT_CONFIG,
+	DEFAULT_GAME_SETTINGS,
 	DEFAULT_PRICES,
 	HEPTA_SUB_ENHANCEMENTS,
 	OKTA_SUB_ENHANCEMENTS,
@@ -26,9 +27,91 @@ import { useStrategyWorker } from '@/hooks/use-strategy-worker'
 import { formatNumber, formatSilver } from '@/lib/utils'
 import type {
 	DistributionData,
+	PercentileData,
 	ResourceLimits,
 	SurvivalCurvePoint,
 } from '@/workers/strategy.worker'
+
+/** Format valks as compact string like "5/2/1" for 100/50/10 */
+function formatValks(v100: number, v50: number, v10: number): string {
+	return `${v100}/${v50}/${v10}`
+}
+
+/** Single percentile column in cost breakdown */
+function PercentileColumn({
+	label,
+	data,
+	isPrimary = false,
+}: {
+	label: string
+	data: PercentileData
+	isPrimary?: boolean
+}) {
+	const recipe = DEFAULT_GAME_SETTINGS.exquisiteRecipe
+	const enhancementCost = DEFAULT_GAME_SETTINGS.enhancementCostPerAttempt
+
+	// Calculate costs
+	const plainCost = data.crystals * enhancementCost
+	const exquisiteCraft = {
+		scrolls: data.exquisite * recipe.restorationScrolls,
+		crystals: data.exquisite * recipe.pristineBlackCrystal,
+		valks100: data.exquisite * recipe.valks100,
+	}
+
+	return (
+		<div>
+			<div className={`font-medium mb-1 ${isPrimary ? 'text-primary' : 'text-muted-foreground'}`}>
+				{label}
+			</div>
+			<div className="space-y-0.5 text-muted-foreground text-[11px]">
+				<div>Enhancement: {formatSilver(plainCost)}</div>
+				<div>Crystals: {formatNumber(data.crystals)}</div>
+				<div>Scrolls: {formatNumber(data.scrolls)}</div>
+				<div>Valks: {formatValks(data.valks100, data.valks50, data.valks10)}</div>
+				{data.exquisite > 0 && (
+					<>
+						<div className="mt-1 pt-1 border-t border-border/50">
+							<span className="font-medium">Exquisite: {formatNumber(data.exquisite)}</span>
+						</div>
+						<div className="text-[10px] pl-2">
+							<div>→ {formatNumber(exquisiteCraft.scrolls)} scrolls</div>
+							<div>→ {formatNumber(exquisiteCraft.crystals)} pristine</div>
+							<div>→ {formatNumber(exquisiteCraft.valks100)} valks +100%</div>
+						</div>
+					</>
+				)}
+			</div>
+		</div>
+	)
+}
+
+/** Cost breakdown shown in expanded area */
+function CostBreakdown({
+	p50,
+	p75,
+	p90,
+	p99,
+	worst,
+}: {
+	p50: PercentileData
+	p75: PercentileData
+	p90: PercentileData
+	p99: PercentileData
+	worst: PercentileData
+}) {
+	return (
+		<div className="mb-3 p-3 bg-muted/30 rounded-md">
+			<div className="text-xs font-medium mb-2">Resource Breakdown</div>
+			<div className="grid grid-cols-5 gap-3 text-xs">
+				<PercentileColumn label="P50 (Median)" data={p50} isPrimary />
+				<PercentileColumn label="P75" data={p75} />
+				<PercentileColumn label="P90 (Unlucky)" data={p90} />
+				<PercentileColumn label="P99" data={p99} />
+				<PercentileColumn label="Worst" data={worst} />
+			</div>
+		</div>
+	)
+}
 
 type Tab = 'restoration' | 'hepta-okta'
 
@@ -116,33 +199,11 @@ function RestorationStrategyTab({
 			restorationFrom: number
 			label: string
 			successRate: number
-			p50: {
-				crystals: number
-				scrolls: number
-				silver: number
-				exquisite: number
-				valks10: number
-				valks50: number
-				valks100: number
-			}
-			p90: {
-				crystals: number
-				scrolls: number
-				silver: number
-				exquisite: number
-				valks10: number
-				valks50: number
-				valks100: number
-			}
-			worst: {
-				crystals: number
-				scrolls: number
-				silver: number
-				exquisite: number
-				valks10: number
-				valks50: number
-				valks100: number
-			}
+			p50: PercentileData
+			p75: PercentileData
+			p90: PercentileData
+			p99: PercentileData
+			worst: PercentileData
 			distribution: DistributionData
 			failedDistribution?: DistributionData
 			expectedCostPerSuccess: number
@@ -318,7 +379,9 @@ function RestorationStrategyTab({
 									onChange={(e) => setUseHepta(e.target.checked)}
 									className="w-4 h-4 rounded border-input"
 								/>
-								<span className="text-sm">Use Hepta for VII→VIII ({HEPTA_SUB_ENHANCEMENTS} subs)</span>
+								<span className="text-sm">
+									Use Hepta for VII→VIII ({HEPTA_SUB_ENHANCEMENTS} subs)
+								</span>
 							</label>
 							<label className="flex items-center gap-2 cursor-pointer">
 								<input
@@ -467,55 +530,21 @@ function RestorationStrategyTab({
 							<table className="w-full text-xs">
 								<thead>
 									<tr className="border-b bg-muted/50">
-										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
-											Restoration From
-										</th>
+										<th className="px-3 py-2 text-left font-medium">Restoration From</th>
 										{!allUnlimited && (
 											<th
-												rowSpan={2}
 												className="px-2 py-2 text-center font-medium"
 												title="% of runs that reached target before crystals ran out"
 											>
 												Completion
 											</th>
 										)}
-										<th colSpan={3} className="px-3 py-1 text-center font-medium border-l">
-											P50 (Median)
-										</th>
-										<th
-											colSpan={3}
-											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
-										>
-											P90 (Unlucky)
-										</th>
-										<th
-											colSpan={3}
-											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
-										>
-											Worst Case
-										</th>
-									</tr>
-									<tr className="border-b bg-muted/50">
-										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
-										<th className="px-3 py-1 text-right font-normal">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal">Rest. Scrolls</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
-											Silver
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Crystals
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Rest. Scrolls
-										</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
-											Silver
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Crystals
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Rest. Scrolls
+										<th className="px-3 py-2 text-right font-medium border-l">P50</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P75</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P90</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P99</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">
+											Worst
 										</th>
 									</tr>
 								</thead>
@@ -524,7 +553,7 @@ function RestorationStrategyTab({
 										const isLowSuccess = result.successRate < 50
 										const isHighSuccess = result.successRate >= 90
 										const isExpanded = expandedRows.has(result.restorationFrom)
-										const colSpan = allUnlimited ? 10 : 11
+										const colSpan = allUnlimited ? 6 : 7
 										return (
 											<Fragment key={result.restorationFrom}>
 												<tr
@@ -566,34 +595,31 @@ function RestorationStrategyTab({
 													<td className="px-3 py-2 text-right border-l">
 														{formatSilver(result.p50.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">
-														{formatNumber(result.p50.crystals)}
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatSilver(result.p75.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">
-														{formatNumber(result.p50.scrolls)}
-													</td>
-													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+													<td className="px-3 py-2 text-right text-muted-foreground">
 														{formatSilver(result.p90.silver)}
 													</td>
 													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.p90.crystals)}
+														{formatSilver(result.p99.silver)}
 													</td>
 													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.p90.scrolls)}
-													</td>
-													<td className="px-3 py-2 text-right border-l text-muted-foreground">
 														{formatSilver(result.worst.silver)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.worst.crystals)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.worst.scrolls)}
 													</td>
 												</tr>
 												{isExpanded && (
 													<tr className="border-b bg-muted/20">
 														<td colSpan={colSpan} className="px-4 py-3">
+															{/* Cost breakdown */}
+															<CostBreakdown
+																p50={result.p50}
+																p75={result.p75}
+																p90={result.p90}
+																p99={result.p99}
+																worst={result.worst}
+															/>
+
 															{/* View toggle (only show when survival curve is available) */}
 															{result.survivalCurve && result.survivalCurve.length > 0 && (
 																<div className="flex gap-2 mb-3">
@@ -773,9 +799,11 @@ function HeptaOktaStrategyTab({
 			useHepta: boolean
 			useOkta: boolean
 			label: string
-			p50: { crystals: number; scrolls: number; silver: number; exquisite: number }
-			p90: { crystals: number; scrolls: number; silver: number; exquisite: number }
-			worst: { crystals: number; scrolls: number; silver: number; exquisite: number }
+			p50: PercentileData
+			p75: PercentileData
+			p90: PercentileData
+			p99: PercentileData
+			worst: PercentileData
 			distribution: DistributionData
 			failedDistribution?: DistributionData
 		}>
@@ -974,53 +1002,13 @@ function HeptaOktaStrategyTab({
 							<table className="w-full text-xs">
 								<thead>
 									<tr className="border-b bg-muted/50">
-										<th rowSpan={2} className="px-3 py-2 text-left font-medium">
-											Strategy
-										</th>
-										<th colSpan={4} className="px-3 py-1 text-center font-medium border-l">
-											P50
-										</th>
-										<th
-											colSpan={4}
-											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
-										>
-											P90
-										</th>
-										<th
-											colSpan={4}
-											className="px-3 py-1 text-center font-medium border-l text-muted-foreground"
-										>
+										<th className="px-3 py-2 text-left font-medium">Strategy</th>
+										<th className="px-3 py-2 text-right font-medium border-l">P50</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P75</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P90</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">P99</th>
+										<th className="px-3 py-2 text-right font-medium text-muted-foreground">
 											Worst
-										</th>
-									</tr>
-									<tr className="border-b bg-muted/50">
-										<th className="px-3 py-1 text-right font-normal border-l">Silver</th>
-										<th className="px-3 py-1 text-right font-normal">Crystals</th>
-										<th className="px-3 py-1 text-right font-normal">Rest. Scrolls</th>
-										<th className="px-3 py-1 text-right font-normal">Exquisite</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
-											Silver
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Crystals
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Rest. Scrolls
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Exquisite
-										</th>
-										<th className="px-3 py-1 text-right font-normal border-l text-muted-foreground">
-											Silver
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Crystals
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Rest. Scrolls
-										</th>
-										<th className="px-3 py-1 text-right font-normal text-muted-foreground">
-											Exquisite
 										</th>
 									</tr>
 								</thead>
@@ -1047,43 +1035,30 @@ function HeptaOktaStrategyTab({
 													<td className="px-3 py-2 text-right border-l">
 														{formatSilver(result.p50.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">
-														{formatNumber(result.p50.crystals)}
+													<td className="px-3 py-2 text-right text-muted-foreground">
+														{formatSilver(result.p75.silver)}
 													</td>
-													<td className="px-3 py-2 text-right">
-														{formatNumber(result.p50.scrolls)}
-													</td>
-													<td className="px-3 py-2 text-right">
-														{formatNumber(result.p50.exquisite)}
-													</td>
-													<td className="px-3 py-2 text-right border-l text-muted-foreground">
+													<td className="px-3 py-2 text-right text-muted-foreground">
 														{formatSilver(result.p90.silver)}
 													</td>
 													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.p90.crystals)}
+														{formatSilver(result.p99.silver)}
 													</td>
 													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.p90.scrolls)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.p90.exquisite)}
-													</td>
-													<td className="px-3 py-2 text-right border-l text-muted-foreground">
 														{formatSilver(result.worst.silver)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.worst.crystals)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.worst.scrolls)}
-													</td>
-													<td className="px-3 py-2 text-right text-muted-foreground">
-														{formatNumber(result.worst.exquisite)}
 													</td>
 												</tr>
 												{isExpanded && (
 													<tr className="border-b bg-muted/20">
-														<td colSpan={13} className="px-4 py-3">
+														<td colSpan={6} className="px-4 py-3">
+															{/* Cost breakdown */}
+															<CostBreakdown
+																p50={result.p50}
+																p75={result.p75}
+																p90={result.p90}
+																p99={result.p99}
+																worst={result.worst}
+															/>
 															<DistributionHistogram
 																distribution={result.distribution}
 																failedDistribution={result.failedDistribution}

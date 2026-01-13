@@ -74,7 +74,14 @@ export function SettingsPage() {
 			</div>
 
 			{/* Section Content */}
-			{activeSection === 'prices' && <PricesSection prices={prices} setPrice={setPrice} />}
+			{activeSection === 'prices' && (
+				<PricesSection
+					prices={prices}
+					setPrice={setPrice}
+					gameSettings={gameSettings}
+					setGameSettings={setGameSettings}
+				/>
+			)}
 			{activeSection === 'rates' && (
 				<RatesSection
 					gameSettings={gameSettings}
@@ -115,9 +122,13 @@ export function SettingsPage() {
 function PricesSection({
 	prices,
 	setPrice,
+	gameSettings,
+	setGameSettings,
 }: {
 	prices: MarketPrices
 	setPrice: <K extends keyof MarketPrices>(key: K, value: number) => void
+	gameSettings: GameSettings
+	setGameSettings: (partial: Partial<GameSettings>) => void
 }) {
 	return (
 		<Card>
@@ -126,6 +137,12 @@ function PricesSection({
 				<p className="text-xs text-muted-foreground">Set silver costs for basic items</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
+				<PriceInput
+					label="Enhancement Cost (per attempt)"
+					value={gameSettings.enhancementCostPerAttempt}
+					onChange={(v) => setGameSettings({ enhancementCostPerAttempt: v })}
+					defaultValue={DEFAULT_GAME_SETTINGS.enhancementCostPerAttempt}
+				/>
 				<PriceInput
 					label="Pristine Black Crystal"
 					value={prices.crystalPrice}
@@ -367,7 +384,8 @@ function HeptaOktaSection({
 						className="w-full mt-1 h-9 px-3 rounded-md border bg-input text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 					/>
 					<p className="text-[10px] text-muted-foreground mt-1">
-						Cost per sub-enhancement attempt (default: {DEFAULT_GAME_SETTINGS.heptaOktaCrystalsPerAttempt})
+						Cost per sub-enhancement attempt (default:{' '}
+						{DEFAULT_GAME_SETTINGS.heptaOktaCrystalsPerAttempt})
 					</p>
 				</div>
 			</CardContent>

@@ -68,6 +68,9 @@ export const EXQUISITE_BLACK_CRYSTAL_RECIPE = {
 	pristineBlackCrystal: 30,
 }
 
+/** Base enhancement cost per attempt (silver) */
+export const ENHANCEMENT_COST_PER_ATTEMPT = 5_000_000 // 5M silver
+
 /** Valks multipliers (multiplicative, not additive) */
 export const VALKS_MULTIPLIER_10 = 1.1 // +10% = x1.1
 export const VALKS_MULTIPLIER_50 = 1.5 // +50% = x1.5
